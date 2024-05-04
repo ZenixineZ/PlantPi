@@ -1,10 +1,10 @@
 #!/usr/bin/python
 from gpiozero import AnalogInputDevice,DigitalOutputDevice
 from time import sleep
-# import board
-# import busio
-import adafruit_ads1x15.ads1015 as ADS
-from adafruit_ads1x15.analog_in import AnalogIn
+import board
+import busio
+import Adafruit-ADS1x15.ads1115 as ADS
+from Adafruit-ADS1x15.analog_in import AnalogIn
 
 class ADS1115(AnalogInputDevice):
     
@@ -28,10 +28,10 @@ class ADS1115(AnalogInputDevice):
 pump = DigitalOutputDevice(14, active_high=True)
 
 # Create the I2C bus
-# i2c = busio.I2C(board.SCL, board.SDA)
+i2c = busio.I2C(board.SCL, board.SDA)
 
 # Create the ADC object using the I2C bus
-ads = ADS.ADS1115()
+ads = ADS.ADS1115(i2c)
 
 # Create single-ended input on channel 0
 chan1 = AnalogIn(ads, ADS.P0)
@@ -40,23 +40,8 @@ chan3 = AnalogIn(ads, ADS.P2)
 chan4 = AnalogIn(ads, ADS.P3)
 
 while True:
-# Read all the ADC channel values in a list.
-    values = [0]*4
-    for i in range(4):
-        # Read the specified ADC channel using the previously set gain value.
-        values[i] = adc.read_adc(i, gain=GAIN)
-        # Note you can also pass in an optional data_rate parameter that controls
-        # the ADC conversion time (in samples/second). Each chip has a different
-        # set of allowed data rate values, see datasheet Table 9 config register
-        # DR bit values.
-        #values[i] = adc.read_adc(i, gain=GAIN, data_rate=128)
-        # Each value will be a 12 or 16 bit signed integer value depending on the
-        # ADC (ADS1015 = 12-bit, ADS1115 = 16-bit).
-    # Print the ADC values.
-    print('| {0:>6} | {1:>6} | {2:>6} | {3:>6} |'.format(*values))
-    # Pause for half a second.
+    print("{:>5}\t{:>5.3f} | {:>5}\t{:>5.3f} | {:>5}\t{:>5.3f} | {:>5}\t{:>5.3f}".format(chan1.value, chan1.voltage, chan2.value, chan2.voltage, chan3.value, chan3.voltage, chan4.value, chan4.voltage))
     sleep(1)
-
 
 # 	print("ON")
 # 	pump.on()
