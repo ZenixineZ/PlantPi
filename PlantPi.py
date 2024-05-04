@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from time import sleep
 import Adafruit_ADS1x15 as ADS
+import os
 
 ## TODO:
 #   -add notification system
@@ -13,7 +14,7 @@ import Adafruit_ADS1x15 as ADS
 #   -
 
 def get_time():
-    return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S.%f')
+    return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
 
 class ChannelSpec:
     def __init__(self, moisture_top_chan=0, moisture_bottom_chan=1, light1_chan=2, light2_chan=3):
@@ -41,7 +42,10 @@ class PlantPi:
         self.adc = ADS.ADS1115()
         self.cnt = 0
         self.need_fill = False
+        write_header = not os.path.isfile("data.csv")
         self.data_file = open("data.csv", "a")
+        if write_header:
+            self.data_file.write("TIME,TOP MOISTURE,BOTTOM MOISTURE,LIGHT 1,LIGHT 2,PUMP STATE,PLANT PROFILE\n")
         
     def __del__(self):
         self.data_file.close()
@@ -107,7 +111,7 @@ class PlantPi:
             moisture_bottom  = self.adc.read_adc(self.channel_spec.moisture_top)/32767
             light1 = self.adc.read_adc(self.channel_spec.moisture_top)/32767
             light2 = self.adc.read_adc(self.channel_spec.moisture_top)/32767
-            self.data_file.write(', '.join([get_time(), str(moisture_top), str(moisture_bottom), str(light1), str(light2), str(self.pump.value == 0), self.plant_profile.name]))
+            self.data_file.write(','.join([get_time(), str(moisture_top), str(moisture_bottom), str(light1), str(light2), str(self.pump.value == 0), self.plant_profile.name])+'\n')
             self.water_if_thirsty(moisture_top, moisture_bottom)    
             self.check_light_out_of_range(light1, light2)
             # Use a shorter 1 sec update when watering and a 30 min update otherwise
@@ -119,5 +123,6 @@ class PlantPi:
             
 if __name__ == "__main__":
     palm = PlantProfile("Majestic Palm", 3, 7, 4, 6)
-    pp = PlantPi(palm)
+    dracaena = PlantProfile("Dragon Plant", 3, 7, 4, 7)
+    pp = PlantPi(dracaena)
     pp.run()
