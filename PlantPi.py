@@ -1,5 +1,6 @@
 #!/usr/bin/python
 from gpiozero import AnalogInputDevice,LED
+from time import sleep
 
 pump = LED(17)
 
