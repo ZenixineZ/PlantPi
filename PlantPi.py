@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from gpiozero import AnalogInputDevice,LED
 
 pump = LED(17)
