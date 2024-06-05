@@ -172,6 +172,8 @@ class PlantPi:
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             plt.show(block=False)
+            
+        print('DONE GRAPH')
 
     def run(self):
         try:
