@@ -37,7 +37,7 @@ class PlantProfile:
 
 class PlantPi:
     def __init__(self, plant_profile : PlantProfile, relay_pin=14, channel_spec=ChannelSpec()):
-
+        self.data_file = None
         self.plant_profile = plant_profile
         self.pump = DigitalOutputDevice(14, active_high=False)
         self.channel_spec = channel_spec
@@ -57,7 +57,8 @@ class PlantPi:
             self.data_file.write("TIME,TOP MOISTURE,BOTTOM MOISTURE,LIGHT 1,LIGHT 2,PUMP STATE,PLANT PROFILE\n")
         
     def __del__(self):
-        self.data_file.close()
+        if(self.data_file):
+            self.data_file.close()
 
     def log(self, string):
         print(get_time() + ", " + string)
@@ -137,6 +138,7 @@ class PlantPi:
                 del self.light2_buff[0]
                 
     def graph(self):
+        print('GRAPH')
         if len(self.times) == 1:
             self.fig, self.sps = plt.subplots(nrows=2,ncols=1)
             self.sps[0].set_title('Top & Bottom Moisture')
@@ -170,6 +172,8 @@ class PlantPi:
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
             plt.show(block=False)
+            
+        print('DONE GRAPH')
 
     def run(self):
         try:
