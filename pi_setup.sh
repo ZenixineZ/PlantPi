@@ -13,7 +13,7 @@ usage()
 	echo
 	echo "Options:"
 	echo "-----------------------------------"
-	echo "-i/--rpi-ip arg (ex: 127.0.0.1): The IPv4 address or hostname of the target Pi"
+	echo "-i/--rpi-ip arg (ex: 127.0.0.1): The IPv4 address or hostname of the target Pi (default: plantpi.local)"
 	echo "-u/--pi-user arg (ex: johnsmith): Required unless -l/--local-setup is specified. The user account to use when connecting to the Pi"
 	echo "-p/--pi-pass arg (ex: password): The password for the specified user. NOTE: This will not work unless you have 'sshpass' installed"
 	echo "-d/--dev-env: Setting this option adds a few more steps to setup.sh to add some handy dev packages"
@@ -83,14 +83,14 @@ echo "Apt installing [vim, python3, ssh, realvnc-vnc-server]..." && \
 sudo apt install -y vim python3 ssh realvnc-vnc-server && \
 echo "Pip installing [gpiozero, matplotlib, Adafruit_ADS1x15]..." && \
 pip3 install gpiozero matplotlib Adafruit_ADS1x15 || die "Failed to install needed packages"
-if [[ -f ~/bashrc ]]; then
-    cat ~/bashrc >> ~/.bashrc
-    rm ~/bashrc
-fi
 mkdir -p ~/git || die "Failed to make '~/git' directory"
 pushd git
-git clone git@github.com:ZenixineZ/PlantPi.git || die "Failed to clone PlantPi from github"
+git clone https://github.com/ZenixineZ/PlantPi.git || die "Failed to clone PlantPi from github"
 popd
+
+sudo raspi-config nonint do_i2c 1
+sudo raspi-config nonint do_spi 1
+sudo raspi-config nonint do_vnc 1
 set +x
 
 EOF
