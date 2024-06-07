@@ -187,7 +187,7 @@ class PlantPi:
                     sleep(1800)
         except KeyboardInterrupt:
             plt.close("all")
-            raise KeyboardInterrupt            
+        exit(0)            
             
 if __name__ == "__main__":
     palm = PlantProfile("Majestic Palm", 3, 7, 4, 6)
