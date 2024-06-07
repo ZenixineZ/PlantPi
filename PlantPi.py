@@ -77,24 +77,30 @@ class PlantPi:
         assert fill_time > 0
         self.fill_pad = fill_pad
         assert fill_pad > 0
+        self.ip = '192.168.0.188'
         d = { \
                 'name': plant_profile.name, \
                 'moisture_min': plant_profile.moisture_min, \
-                'moisture_max': plant_profile.moisture_maxv, \
+                'moisture_max': plant_profile.moisture_max, \
                 'light_min': plant_profile.light_min, \
                 'light_max': plant_profile.light_max \
             }
-        requests.post('http://127.0.0.1:8080/plant', json=d)
+        while True:
+            try:
+                requests.post(f'http://{self.ip}:8080/plant', json=d)
+                break
+            except requests.exceptions.RequestException:
+                sleep(10)
 
-        
-            
     def water(self):
         if(self.pump.value == 0):
             self.pump.on()
+            print('Pump On')
     
     def stop_watering(self):
         if(self.pump.value == 1):
             self.pump.off()
+            print('Pump Off')
 
     def water_if_thirsty(self):
         # If we don't need to fill, check against the low threshold, otherwise, check against the high threshold so we fill it up to that point
@@ -158,11 +164,13 @@ class PlantPi:
                 retry = 0
                 while retry < 5:
                     try:
-                        requests.post('http://127.0.0.1:8080/data', json=d)
+                        requests.post(f'http://{self.ip}:8080/data', json=d)
+                        break
                     except requests.exceptions.RequestException:
-                        pass                                # Use a shorter 0.25 sec update when watering and a 30 min update otherwise
+                        retry += 1                          
+                # Use a shorter 0.5 sec update when watering and a 30 min update otherwise
                 if self.need_top_off or self.need_fill or (len(sys.argv) > 1  and sys.argv[1] == '-t'):
-                    sleep(0.25)
+                    sleep(0.5)
                 else:
                     sleep(1800)
         except KeyboardInterrupt:
@@ -171,5 +179,6 @@ class PlantPi:
 if __name__ == "__main__":
     palm = PlantProfile(name="Majestic Palm", moisture_min=3, moisture_max=7, light_min=4, light_max=6) # light vals are placeholders
     dracaena = PlantProfile(name="Dragon Plant", moisture_min=3, moisture_max=7, light_min=4, light_max=7) # light vals are placeholders
+    #pp = PlantPi(dracaena)
     pp = PlantPi(PlantProfile(name="TEST", moisture_min=0, moisture_max=0, light_min=0, light_max=10))
     pp.run()
