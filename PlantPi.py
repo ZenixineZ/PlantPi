@@ -190,7 +190,7 @@ class PlantPi:
             raise KeyboardInterrupt            
             
 if __name__ == "__main__":
-    palm = PlantProfile("Majestic Palm", 3, 7, 4, 6)
-    dracaena = PlantProfile("Dragon Plant", 3, 7, 4, 7)
+    palm = PlantProfile(name="Majestic Palm", moisture_min=3, moisture_max=7, light_min=4, light_max=6)
+    dracaena = PlantProfile(name="Dragon Plant", moisture_min=3, moisture_max=7, light_min=4, light_max=7)
     pp = PlantPi(dracaena)
     pp.run()
