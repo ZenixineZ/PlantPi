@@ -78,6 +78,10 @@ class PlantPi:
         self.fill_pad = fill_pad
         assert fill_pad > 0
         self.ip = '192.168.0.188'
+        for i in range(len(sys.argv)):
+            if sys.argv[i] == '-h' and i != len(sys.argv)-1:
+                self.ip = sys.argv[i+1]
+                break
         d = { \
                 'name': plant_profile.name, \
                 'moisture_min': plant_profile.moisture_min, \
