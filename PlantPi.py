@@ -6,6 +6,7 @@ from time import sleep
 import Adafruit_ADS1x15 as ADS
 import os
 import matplotlib.pyplot as plt
+import sys
 
 ## TODO:
 #   -DEV:
@@ -60,7 +61,7 @@ class PlantPi:
         self.data_file.close()
 
     def log(self, string):
-        print(get_time() + ", " + string)
+        print(get_time() + ": " + string)
 
     def check_light_out_of_range(self):
         light1 = self.light1_buff[-1]
@@ -128,7 +129,7 @@ class PlantPi:
             self.moisture_bottom_buff.append(moisture_bottom)
             self.light1_buff.append(light1)
             self.light2_buff.append(light2)
-            self.data_file.write(','.join([str(t), str(moisture_top), str(moisture_bottom), str(light1), str(light2), str(self.pump.value == 0), self.plant_profile.name])+'\n')
+            self.data_file.write(','.join([str(t), str(moisture_top), str(moisture_bottom), str(light1), str(light2), str(self.pump.value == 1), self.plant_profile.name])+'\n')
             while self.times[-1]-self.times[0] > 60*60*12:
                 del self.times[0]
                 del self.moisture_top_buff[0]
@@ -179,13 +180,13 @@ class PlantPi:
                 self.check_light_out_of_range()
                 self.graph()
                 # Use a shorter 1 sec update when watering and a 30 min update otherwise
-                if self.need_top_off or self.need_fill:
+                if self.need_top_off or self.need_fill or (len(sys.argv) > 1  and sys.argv[1] == '-t'):
                     sleep(0.5)
                 else:
                     sleep(1800)
         except KeyboardInterrupt:
             plt.close("all")
-        raise KeyboardInterrupt            
+            raise KeyboardInterrupt            
             
 if __name__ == "__main__":
     palm = PlantProfile("Majestic Palm", 3, 7, 4, 6)
