@@ -17,6 +17,21 @@ import sys
 #       -figure out threshold mapping to standard scales for light and mositure
 #       -test moisture handling and revise thresholding if needed
 #       - 
+
+
+
+#   Moisture Mapping, tested with resistive gardening probe
+#   1:      0.515 
+#   >=10:   0.365
+#
+#   m = (10 - 1)/(0.365 - 0.515) ~= -60
+#   y - 1 = 60 * (x - 0.515)
+#   b = 60*0.515+1
+
+m = -60
+b = 60*0.515+1
+def map_moisture(moisture):
+    return m*moisture+b
     
 def get_time():
     return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -121,8 +136,8 @@ class PlantPi:
 
     def read_data(self):
             t = time.time()
-            moisture_top = self.adc.read_adc(self.channel_spec.moisture_top)/32767
-            moisture_bottom = self.adc.read_adc(self.channel_spec.moisture_bottom)/32767
+            moisture_top = map_moisture(self.adc.read_adc(self.channel_spec.moisture_top)/32767)
+            moisture_bottom = map_moisture(self.adc.read_adc(self.channel_spec.moisture_bottom)/32767)
             light1 = self.adc.read_adc(self.channel_spec.light1)/32767
             light2 = self.adc.read_adc(self.channel_spec.light2)/32767
             self.times.append(t)
