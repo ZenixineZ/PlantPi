@@ -34,6 +34,10 @@ plt.switch_backend('Qt5Agg')
 m = -60
 b = 60*0.515+1
 def map_moisture(moisture):
+    if moisture > 0.515:
+        return 0.0
+    elif moisture < 0.365:
+        return 10.0
     return m*moisture+b
     
 def get_time():
@@ -226,9 +230,10 @@ class PlantPi:
                 else:
                     sleep(1800)
         except KeyboardInterrupt:
-            plt.show()
+            self.stop_watering()
+            plt.pause(3)
             plt.close("all")
-            
+
 if __name__ == "__main__":
     palm = PlantProfile(name="Majestic Palm", moisture_min=3, moisture_max=7, light_min=4, light_max=6)
     dracaena = PlantProfile(name="Dragon Plant", moisture_min=3, moisture_max=7, light_min=4, light_max=7)
