@@ -4,8 +4,8 @@ import time
 from datetime import datetime
 from time import sleep
 import Adafruit_ADS1x15 as ADS
-import sys
 import requests
+import argparse
 
 ## TODO:
 #   -DEV:
@@ -26,6 +26,15 @@ import requests
 #   m = (10 - 1)/(0.365 - 0.515) ~= -60
 #   y - 1 = 60 * (x - 0.515)
 #   b = 60*0.515+1
+
+
+parser = argparse.ArgumentParser(description = "Run the plant pi")
+
+parser.add_argument("-t", "--test",  action='store_true', help='Puts the PlantPi into test mode where samples are always taken every half second rather than the usual half hour')
+parser.add_argument("-s", "--server", help='The address of the machine running PlantPiServer.py to graph the data')
+parser.add_argument("-w", "--water",  action='store_true', help='Sets the PlantPi to constantly water the plant')
+
+args = parser.parse_args()
 
 m = -60
 b = 60*0.515+1
@@ -77,11 +86,10 @@ class PlantPi:
         assert fill_time > 0
         self.fill_pad = fill_pad
         assert fill_pad > 0
+        # server ip
         self.ip = '192.168.0.188'
-        for i in range(len(sys.argv)):
-            if sys.argv[i] == '-h' and i != len(sys.argv)-1:
-                self.ip = sys.argv[i+1]
-                break
+        if args.server:
+            self.ip = args.server
         d = { \
                 'name': plant_profile.name, \
                 'moisture_min': plant_profile.moisture_min, \
@@ -89,12 +97,13 @@ class PlantPi:
                 'light_min': plant_profile.light_min, \
                 'light_max': plant_profile.light_max \
             }
-        while True:
-            try:
-                requests.post(f'http://{self.ip}:8080/plant', json=d)
-                break
-            except requests.exceptions.RequestException:
-                sleep(10)
+        if not args.water:
+            while True:
+                try:
+                    requests.post(f'http://{self.ip}:8080/plant', json=d)
+                    break
+                except requests.exceptions.RequestException:
+                    sleep(10)
 
     def water(self):
         if(self.pump.value == 0):
@@ -149,6 +158,9 @@ class PlantPi:
     def run(self):
         try:
             while True:
+                if args.water:
+                    self.water()
+                    continue
                 self.time = time.time()
                 self.moisture_top = map_moisture(self.adc.read_adc(self.channel_spec.moisture_top)/32767)
                 self.moisture_bottom = map_moisture(self.adc.read_adc(self.channel_spec.moisture_bottom)/32767)
@@ -173,7 +185,7 @@ class PlantPi:
                     except requests.exceptions.RequestException:
                         retry += 1                          
                 # Use a shorter 0.5 sec update when watering and a 30 min update otherwise
-                if self.need_top_off or self.need_fill or (len(sys.argv) > 1  and sys.argv[1] == '-t'):
+                if self.need_top_off or self.need_fill or args.test:
                     sleep(0.5)
                 else:
                     sleep(1800)
@@ -181,8 +193,8 @@ class PlantPi:
             self.stop_watering()
 
 if __name__ == "__main__":
+    test = PlantProfile(name="TEST", moisture_min=0, moisture_max=0, light_min=0, light_max=10)
     palm = PlantProfile(name="Majestic Palm", moisture_min=3, moisture_max=7, light_min=4, light_max=6) # light vals are placeholders
     dracaena = PlantProfile(name="Dragon Plant", moisture_min=3, moisture_max=7, light_min=4, light_max=7) # light vals are placeholders
-    #pp = PlantPi(dracaena)
-    pp = PlantPi(PlantProfile(name="TEST", moisture_min=0, moisture_max=0, light_min=0, light_max=10))
+    pp = PlantPi(dracaena)
     pp.run()
