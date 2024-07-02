@@ -50,8 +50,8 @@ class PlantProfile:
     def __init__(self, name, moisture_min, moisture_max, light_min, light_max):
         assert moisture_min >= 0 and moisture_max >= 0 and light_min >= 0 and light_max >= 0
         self.name = name
-        self.moisture_min = moisture_min/10
-        self.moisture_max = moisture_max/10
+        self.moisture_min = moisture_min
+        self.moisture_max = moisture_max
         self.light_min = light_min/10
         self.light_max = light_max/10
 

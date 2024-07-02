@@ -94,8 +94,8 @@ def graph():
         elif le > last_len:
             last_len = le
             t =  [x - t0 for x in times]
-            mt = [x * 10 for x in moisture_top_buff]
-            mb = [x * 10 for x in moisture_bottom_buff]
+            mt = [x * 1 for x in moisture_top_buff]
+            mb = [x * 1 for x in moisture_bottom_buff]
             l1 = [x * 10 for x in light1_buff]
             l2 = [x * 10 for x in light2_buff]
             plot_mt.set_data(t, mt)
