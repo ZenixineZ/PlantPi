@@ -33,6 +33,7 @@ parser = argparse.ArgumentParser(description = "Run the plant pi")
 parser.add_argument("-t", "--test",  action='store_true', help='Puts the PlantPi into test mode where samples are always taken every half second rather than the usual half hour')
 parser.add_argument("-s", "--server", help='The address of the machine running PlantPiServer.py to graph the data')
 parser.add_argument("-w", "--water",  action='store_true', help='Sets the PlantPi to constantly water the plant')
+parser.add_argument("-v", "--verbose",  action='store_true', help='Prints the sensor data on the console')
 
 args = parser.parse_args()
 
@@ -97,7 +98,7 @@ class PlantPi:
                 'light_min': plant_profile.light_min, \
                 'light_max': plant_profile.light_max \
             }
-        if not args.water:
+        if not args.water and not args.verbose:
             while True:
                 try:
                     requests.post(f'http://{self.ip}:8080/plant', json=d)
@@ -158,14 +159,27 @@ class PlantPi:
     def run(self):
         try:
             while True:
-                if args.water:
-                    self.water()
-                    continue
+
                 self.time = time.time()
-                self.moisture_top = map_moisture(self.adc.read_adc(self.channel_spec.moisture_top)/32767)
-                self.moisture_bottom = map_moisture(self.adc.read_adc(self.channel_spec.moisture_bottom)/32767)
+                self.moisture_top = self.adc.read_adc(self.channel_spec.moisture_top)/32767
+                self.moisture_bottom = self.adc.read_adc(self.channel_spec.moisture_bottom)/32767
                 self.light1 = self.adc.read_adc(self.channel_spec.light1)/32767
                 self.light2 = self.adc.read_adc(self.channel_spec.light2)/32767
+
+                if args.verbose:
+                    print(f'{self.time}: Pump: {self.pump.value == 1}')
+                    print(f'TOP: {self.moisture_top} -> {map_moisture(self.moisture_top)}')
+                    print(f'BOTTOM: {self.moisture_bottom} -> {map_moisture(self.moisture_bottom)}')
+                    print(f'Light 1: {self.light1}')
+                    print(f'Light 2: {self.light2}\n')
+
+                if args.water:
+                    self.water()
+                    sleep(0.5)
+                    continue
+
+                self.moisture_top = map_moisture(self.moisture_top)
+                self.moisture_bottom = map_moisture(self.moisture_bottom)
                 
                 self.water_if_thirsty()    
                 d = { \
