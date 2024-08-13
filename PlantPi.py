@@ -6,6 +6,7 @@ from time import sleep
 import Adafruit_ADS1x15 as ADS
 import requests
 import argparse
+import os
 
 ## TODO:
 #   -DEV:
@@ -34,6 +35,7 @@ parser.add_argument("-t", "--test",  action='store_true', help='Puts the PlantPi
 parser.add_argument("-s", "--server", help='The address of the machine running PlantPiServer.py to graph the data')
 parser.add_argument("-w", "--water",  action='store_true', help='Sets the PlantPi to constantly water the plant')
 parser.add_argument("-v", "--verbose",  action='store_true', help='Prints the sensor data on the console')
+parser.add_argument("-f", "--file", help='Path to a csv file to write data to')
 
 args = parser.parse_args()
 
@@ -158,6 +160,12 @@ class PlantPi:
         return self.stop_watering()           
                 
     def run(self):
+        file = None
+        if args.file and (len(os.path.dirname(args.file)) == 0 or os.path.exists(os.path.dirname(args.file))):
+            existed = os.path.exists(args.file)
+            file = open(args.file, 'a')
+            if not existed:
+                file.write('TIME,TOP,BOTTOM\n')
         try:
             while True:
 
@@ -173,6 +181,9 @@ class PlantPi:
                     print(f'BOTTOM: {self.moisture_bottom} -> {map_moisture(self.moisture_bottom)}')
                     print(f'Light 1: {self.light1}')
                     print(f'Light 2: {self.light2}\n')
+
+                if file:
+                    file.write(f'{self.time},{self.moisture_top},{self.moisture_bottom}\n')
 
                 if args.water:
                     self.water()
@@ -205,7 +216,15 @@ class PlantPi:
                 else:
                     sleep(1800)
         except KeyboardInterrupt:
+            if file:
+                file.close()
+                file = None
             self.stop_watering()
+        if file:
+            file.close()
+            file = None
+        self.stop_watering()
+
 
 if __name__ == "__main__":
     test = PlantProfile(name="TEST", moisture_min=0, moisture_max=0, light_min=0, light_max=10)
