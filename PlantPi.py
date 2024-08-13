@@ -163,9 +163,12 @@ class PlantPi:
         file = None
         if args.file and (len(os.path.dirname(args.file)) == 0 or os.path.exists(os.path.dirname(args.file))):
             existed = os.path.exists(args.file)
-            file = open(args.file, 'a')
-            if not existed:
-                file.write('TIME,TOP,BOTTOM\n')
+            with open(args.file, 'a') as file:
+                if not existed:
+                    file.write('TIME,TOP,BOTTOM\n')
+        else:
+            args.file = None
+
         try:
             while True:
 
@@ -182,8 +185,9 @@ class PlantPi:
                     print(f'Light 1: {self.light1}')
                     print(f'Light 2: {self.light2}\n')
 
-                if file:
-                    file.write(f'{self.time},{self.moisture_top},{self.moisture_bottom}\n')
+                if args.file:
+                    with open(args.file, 'a') as file:
+                        file.write(f'{self.time},{self.moisture_top},{self.moisture_bottom}\n')
 
                 if args.water:
                     self.water()
@@ -216,13 +220,7 @@ class PlantPi:
                 else:
                     sleep(1800)
         except KeyboardInterrupt:
-            if file:
-                file.close()
-                file = None
             self.stop_watering()
-        if file:
-            file.close()
-            file = None
         self.stop_watering()
 
 
