@@ -95,7 +95,7 @@ class PlantPi:
                 'light_min': plant_profile.light_min, \
                 'light_max': plant_profile.light_max \
             }
-        if not args.water and not args.verbose:
+        if not args.water and not args.verbose and not args.file:
             while True:
                 try:
                     requests.post(f'http://{self.ip}:8080/plant', json=d)
