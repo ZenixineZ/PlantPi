@@ -159,7 +159,7 @@ class PlantPi:
             existed = os.path.exists(args.file)
             with open(args.file, 'a') as file:
                 if not existed:
-                    file.write('TIME,TOP,BOTTOM\n')
+                    file.write('TIME,TOP,MAPPED TOP,BOTTOM,MAPPED BOTTOM,LIGHT1,LIGHT2,PUMP\n')
         else:
             args.file = None
 
@@ -181,7 +181,7 @@ class PlantPi:
 
                 if args.file:
                     with open(args.file, 'a') as file:
-                        file.write(f'{self.time},{self.moisture_top},{self.moisture_bottom}\n')
+                        file.write(f'{self.time},{self.moisture_top},{map_moisture(self.moisture_top)},{self.moisture_bottom},{map_moisture(self.moisture_bottom)},{self.light1},{self.light2},{self.pump.value}\n')
 
                 if args.water:
                     self.water()
