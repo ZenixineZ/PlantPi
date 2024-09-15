@@ -11,6 +11,7 @@ import os
 ## TODO:
 #   -DEV:
 #       -add notification system
+#       -figure out server system for notifications, maybe a beefier pi to bring in the data?
 #       -restart handling, service?
 #       -Real time graph: find a better graphing library for growing graphs, 
 #           ideally one that can be zoomed in easily on the new data
@@ -172,26 +173,31 @@ class PlantPi:
                 self.light1 = self.adc.read_adc(self.channel_spec.light1)/32767
                 self.light2 = self.adc.read_adc(self.channel_spec.light2)/32767
 
-                if args.verbose:
-                    print(f'{self.time}: Pump: {self.pump.value == 1}')
-                    print(f'TOP: {self.moisture_top} -> {map_moisture(self.moisture_top)}')
-                    print(f'BOTTOM: {self.moisture_bottom} -> {map_moisture(self.moisture_bottom)}')
-                    print(f'Light 1: {self.light1}')
-                    print(f'Light 2: {self.light2}\n')
-
-                if args.file:
-                    with open(args.file, 'a') as file:
-                        file.write(f'{self.time},{self.moisture_top},{map_moisture(self.moisture_top)},{self.moisture_bottom},{map_moisture(self.moisture_bottom)},{self.light1},{self.light2},{self.pump.value}\n')
-
+                mt = self.moisture_top
+                mb = self.moisture_bottom
+                self.moisture_top = map_moisture(self.moisture_top)
+                self.moisture_bottom = map_moisture(self.moisture_bottom)
+                
                 if args.water:
                     self.water()
                     sleep(0.5)
                     continue
 
-                self.moisture_top = map_moisture(self.moisture_top)
-                self.moisture_bottom = map_moisture(self.moisture_bottom)
-                
-                self.water_if_thirsty()    
+                self.water_if_thirsty()  
+
+                if args.verbose:
+                    print(f'{self.time}: Pump: {self.pump.value == 1}')
+                    print(f'TOP: {mt} -> {self.moisture_top}')
+                    print(f'BOTTOM: {mb} -> {self.moisture_bottom}')
+                    print(f'Light 1: {self.light1}')
+                    print(f'Light 2: {self.light2}\n')
+  
+
+                if args.file:
+                    with open(args.file, 'a') as file:
+                        file.write(f'{self.time},{mt},{self.moisture_top},{mb},{self.moisture_bottom},{self.light1},{self.light2},{self.pump.value}\n')
+
+
                 d = { \
                      'time': self.time, \
                      'moisture_top': self.moisture_top, \
