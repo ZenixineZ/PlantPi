@@ -10,15 +10,35 @@ import os
 
 ## TODO:
 #   -DEV:
-#       -add notification system
-#       -figure out server system for notifications, maybe a beefier pi to bring in the data?
-#       -restart handling, service?
+#       -V2:
+#           -central hub run by larger pi, up to four plants
+#               -8 light and moisture sensors (think have 2 free)
+#               -8 submersible but strong pumps & relays (might have a relay free)
+#               -wall power & 18650s ideally
+#               -16 adc channels (have all of these already if I can mux 4x4 onto i2c/s2p at the same time)
+#               -8 more printed sensor covers
+#               -light sensor housings
+#               -light strips, enough to make it look good (figure out the communication here)
+#               -build control unit into cistern unit, think of nicer cistern than home depot jug
+#                   -maybe just a big clear jug with an opaque control box
+#               -watering ring, look for precanned or make shift
+#               -house tubing and wires (and maybe lights) in a casing of some sort
+#               -use plugs for cable endings
+#               -water level indicator in cistern, look for precanned if not make using cork
+#           -control/config ui
+#           -stores all data, interpolates old data away to achieve configurable size limit
+#           -runs website tracker (ios compatible?) via home network
+#           -add notification system, likely texts or emails for now
+#               -digest of configurable time period of data
+#               -sustained critical light or water reading
+#               -refill cistern
+#           -lighting system, different colors for different fill types, selectable patterns, music mode...?
+#           -restart handling, service?
 #       -Real time graph: find a better graphing library for growing graphs, 
 #           ideally one that can be zoomed in easily on the new data
 #   -TEST:
-#       -figure out threshold mapping to standard scales for light and mositure
 #       -test moisture handling and revise thresholding if needed
-#       - 
+#       
 
 
 #   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
@@ -156,12 +176,7 @@ class PlantPi:
                 
     def run(self):
         file = None
-        if args.file and (len(os.path.dirname(args.file)) == 0 or os.path.exists(os.path.dirname(args.file))):
-            existed = os.path.exists(args.file)
-            with open(args.file, 'a') as file:
-                if not existed:
-                    file.write('TIME,TOP,MAPPED TOP,BOTTOM,MAPPED BOTTOM,LIGHT1,LIGHT2,PUMP\n')
-        else:
+        if not args.file or not (len(os.path.dirname(args.file)) == 0 or os.path.exists(os.path.dirname(args.file))):
             args.file = None
 
         try:
@@ -193,27 +208,37 @@ class PlantPi:
                     print(f'Light 2: {self.light2}\n')
   
 
+                header = 'TIME,TOP,MAPPED TOP,BOTTOM,MAPPED BOTTOM,LIGHT1,LIGHT2,PUMP\n'
                 if args.file:
-                    with open(args.file, 'a') as file:
+                    with open(args.file, 'a+') as file:
+                        t = file.tell()
+                        file.seek(0)
+                        lines = file.readlines()
+                        file.seek(t)
+                        if len(lines) == 0:
+                            file.write(header)
+                        elif lines[0] != header:
+                            file.truncate(0)
+                            file.write(header)
                         file.write(f'{self.time},{mt},{self.moisture_top},{mb},{self.moisture_bottom},{self.light1},{self.light2},{self.pump.value}\n')
 
-
-                d = { \
-                     'time': self.time, \
-                     'moisture_top': self.moisture_top, \
-                     'moisture_bottom': self.moisture_bottom, \
-                     'light1': self.light1, \
-                     'light2': self.light2, \
-                     'pump': self.pump.value == 1 \
-                    }
-                
-                retry = 0
-                while retry < 5:
-                    try:
-                        requests.post(f'http://{self.ip}:8080/data', json=d)
-                        break
-                    except requests.exceptions.RequestException:
-                        retry += 1                          
+                if not args.file:          
+                    d = { \
+                         'time': self.time, \
+                         'moisture_top': self.moisture_top, \
+                         'moisture_bottom': self.moisture_bottom, \
+                         'light1': self.light1, \
+                         'light2': self.light2, \
+                         'pump': self.pump.value == 1 \
+                        }
+                    
+                    retry = 0
+                    while retry < 5:
+                        try:
+                            requests.post(f'http://{self.ip}:8080/data', json=d)
+                            break
+                        except requests.exceptions.RequestException:
+                            retry += 1                          
                 # Use a shorter 0.5 sec update when watering and a 30 min update otherwise
                 if self.need_top_off or self.need_fill or args.test:
                     sleep(0.5)
