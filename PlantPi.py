@@ -20,13 +20,9 @@ import os
 #       - 
 
 
-#   Moisture Mapping, tested with resistive gardening probe
-#   1:      0.515 
-#   >=10:   0.365
-#
-#   m = (10 - 1)/(0.365 - 0.515) ~= -60
-#   y - 1 = 60 * (x - 0.515)
-#   b = 60*0.515+1
+#   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
+#   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
+#   >=10:   0.283 -> wet
 
 
 parser = argparse.ArgumentParser(description = "Run the plant pi")
@@ -39,14 +35,12 @@ parser.add_argument("-f", "--file", help='Path to a csv file to write data to')
 
 args = parser.parse_args()
 
-m = -60
-b = 60*0.515+1
+dry = 0.428
+wet = 0.283
+m = 8.5/(wet - dry)
+b = -m*dry+1.5
 def map_moisture(moisture):
-    if moisture > 0.515:
-        return 0.0
-    elif moisture < 0.365:
-        return 10.0
-    return m*moisture+b
+    return max(0, min(10, m*moisture+b))
     
 def get_time():
     return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S.%f')
