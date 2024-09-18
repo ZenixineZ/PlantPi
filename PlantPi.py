@@ -10,6 +10,7 @@ import os
 
 ## TODO:
 #   -DEV:
+#       -port setup to python
 #       -V2:
 #           -central hub run by larger pi, up to four plants
 #               -8 light and moisture sensors (think have 2 free)
@@ -25,9 +26,11 @@ import os
 #               -house tubing and wires (and maybe lights) in a casing of some sort
 #               -use plugs for cable endings
 #               -water level indicator in cistern, look for precanned if not make using cork
+#               -monitor pi that listens for heartbeat from plantpi and reports outtages
 #           -control/config ui
+#           -light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
 #           -stores all data, interpolates old data away to achieve configurable size limit
-#           -runs website tracker (ios compatible?) via home network
+#           -(I guess vnc in until you start at web dev) runs website tracker (ios compatible?) via home network
 #           -add notification system, likely texts or emails for now
 #               -digest of configurable time period of data
 #               -sustained critical light or water reading
