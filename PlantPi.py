@@ -9,6 +9,7 @@ import argparse
 import os
 import threading
 import getch
+import json
 
 ## TODO:
 #   -DEV:
@@ -49,6 +50,10 @@ import getch
 #   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
 #   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
 #   >=10:   0.283 -> wet
+import sys
+plantpi_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, plantpi_path)
+import Emailer
 
 
 parser = argparse.ArgumentParser(description = "Run the plant pi")
@@ -68,8 +73,14 @@ b = -m*dry+1.5
 def map_moisture(moisture):
     return max(0, min(10, m*moisture+b))
     
-def get_time():
-    return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S.%f')
+def get_time(time=None, frac=True):
+    fmt_str = '%m/%d/%Y %H:%M:%S'
+    if frac:
+        fmt_str += '.%f'
+    if time:
+        return datetime.fromtimestamp(time).strftime(fmt_str)
+    else:
+        return datetime.fromtimestamp(time.time()).strftime(fmt_str)
 
 class ChannelSpec:
     def __init__(self, moisture_top_chan=0, moisture_bottom_chan=1, light1_chan=2, light2_chan=3):
@@ -108,9 +119,34 @@ class PlantPi:
         self.start_fill = None
         self.pause_fill = None
         self.fill_time = fill_time
+        self.last_pump_val = 0
         assert fill_time > 0
         self.fill_pad = fill_pad
         assert fill_pad > 0
+        #setup email notifier
+        self.emailer = Emailer.Emailer()
+        self.email_user = None
+        self.email_pwd = None
+        self.email_to = None
+        self.email_from = None
+        with open(os.path.join(plantpi_path,'email_auth.json'), 'r') as f:
+            auth = json.load(f)
+            if 'user' in auth:
+                self.email_user = auth['user']
+            if 'password' in auth:
+                self.email_pwd = auth['password']
+            if 'to' in auth:
+                self.email_to = auth['to']
+            if 'from' in auth:
+                self.email_from = auth['from']
+                
+        if self.email_user == None or self.email_pwd == None or self.email_to == None or self.email_from == None:
+            self.email_user = None
+            self.email_pwd = None
+            self.email_to = None
+            self.email_from = None
+            print('Warning: Failed to parse email_auth.json, notifications will be disabled')        
+            
         # server ip
         self.ip = '192.168.0.188'
         if args.server:
@@ -223,6 +259,20 @@ class PlantPi:
                     continue
 
                 self.water_if_thirsty()  
+                if self.email_user and self.email_pwd and self.email_to and self.email_from:
+                    if self.pump.value == 1 and self.last_pump_val == 0 and not self.pause_fill:
+                        msg = f'{get_time(self.time, False)}\n' \
+                              f'Pump: {self.pump.value == 1}\n' \
+                              f'Top: {self.moisture_top}\n' \
+                              f'Bottom: {self.moisture_bottom}\n' \
+                              f'Light 1: {self.light1}\n' \
+                              f'Light 2: {self.light2}\n'
+                        try:
+                            self.emailer.send_email(self.email_user, self.email_pwd, self.email_to, self.email_from, "PlantPi Pump Activated", msg)
+                            print(f'Email sent from {self.email_from} to {self.email_to}')
+                        except Exception as e:
+                            print(f'Warning: Failed to send notification email: {e.message}', flush=True)
+                    self.last_pump_val = self.pump.value
 
                 if args.verbose:
                     print(f'{self.time}: Pump: {self.pump.value == 1}')
