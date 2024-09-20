@@ -13,20 +13,20 @@ import os
 #       -port setup to python
 #       -V2:
 #           -central hub run by larger pi, up to four plants
-#               -8 light and moisture sensors (think have 2 free)
-#               -8 submersible but strong pumps & relays (might have a relay free)
-#               -wall power & 18650s ideally
-#               -16 adc channels (have all of these already if I can mux 4x4 onto i2c/s2p at the same time)
+#               -X8 light and moisture sensors
+#               -X4 submersible but strong pumps & relays
+#               -Xwall power
+#               -X16 adc channels
 #               -8 more printed sensor covers
-#               -light sensor housings
-#               -light strips, enough to make it look good (figure out the communication here)
-#               -build control unit into cistern unit, think of nicer cistern than home depot jug
+#               -light sensor housing(s) (only one if you can figure out how to make it bluetoth)
+#               -Xlight strips, enough to make it look good (figure out the communication here (looks like some digital comm with a control unit))
+#               -build control unit in or on to cistern unit, think of nicer cistern than home depot jug
 #                   -maybe just a big clear jug with an opaque control box
-#               -watering ring, look for precanned or make shift
-#               -house tubing and wires (and maybe lights) in a casing of some sort
-#               -use plugs for cable endings
-#               -water level indicator in cistern, look for precanned if not make using cork
-#               -monitor pi that listens for heartbeat from plantpi and reports outtages
+#               -Xwatering ring, look for precanned or make shift
+#               -Xhouse tubing and wires (and maybe lights) in a clear casing of some sort
+#               -Xuse plugs for cable endings
+#               -Xwater level indicator in cistern, look for precanned if not make using cork
+#           -monitor pi that listens for heartbeat from plantpi and reports outtages
 #           -control/config ui
 #           -light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
 #           -stores all data, interpolates old data away to achieve configurable size limit
@@ -170,8 +170,8 @@ class PlantPi:
         self.need_fill = False
         self.pause_fill = None
         self.start_fill = None
-        # Otherwise, only the top sensor below the threshold, water until it isn't
-        if self.moisture_top < thresh:
+        # Otherwise, only the top sensor below the threshold, water until it isn't. Don't water if bottom is too wet
+        if self.moisture_top < thresh and self.moisture_bottom < self.plant_profile.moisture_max:
             self.need_top_off = True
             return self.water()
         self.need_top_off = False
