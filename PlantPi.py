@@ -7,6 +7,8 @@ import Adafruit_ADS1x15 as ADS
 import requests
 import argparse
 import os
+import threading
+import getch
 
 ## TODO:
 #   -DEV:
@@ -92,12 +94,13 @@ class PlantPi:
         assert relay_gpio < 26
         self.pump = DigitalOutputDevice(relay_gpio, active_high=False)
         self.channel_spec = channel_spec
-
+        self.qt = threading.Thread(target=self.query_thread, group=None)
         self.time = 0
         self.moisture_top = 0
         self.moisture_bottom = 0
         self.light1 = 0
         self.light2 = 0
+        self.done = False
         # Create the ADC object using the I2C bus
         self.adc = ADS.ADS1115()
         self.need_fill = False
@@ -126,6 +129,19 @@ class PlantPi:
                     break
                 except requests.exceptions.RequestException:
                     sleep(10)
+
+    def query_thread(self):
+        while not self.done:
+            if getch.getch() == 's':
+                moisture_top = map_moisture(self.adc.read_adc(self.channel_spec.moisture_top)/32767)
+                moisture_bottom = map_moisture(self.adc.read_adc(self.channel_spec.moisture_bottom)/32767)
+                light1 = self.adc.read_adc(self.channel_spec.light1)/32767
+                light2 = self.adc.read_adc(self.channel_spec.light2)/32767
+                print(f'\r{time.time()}: Pump: {self.pump.value == 1}')
+                print(f'TOP: {moisture_top}')
+                print(f'BOTTOM: {moisture_bottom}')
+                print(f'Light 1: {light1}')
+                print(f'Light 2: {light2}\n')
 
     def water(self):
         if(self.pump.value == 0):
@@ -182,6 +198,11 @@ class PlantPi:
         if not args.file or not (len(os.path.dirname(args.file)) == 0 or os.path.exists(os.path.dirname(args.file))):
             args.file = None
 
+        print('Running...\n')
+
+        if not args.verbose:
+            print('Press "s" key to print sample')
+            self.qt.start()
         try:
             while True:
 
@@ -250,6 +271,9 @@ class PlantPi:
         except KeyboardInterrupt:
             self.stop_watering()
         self.stop_watering()
+        self.done = True
+        if not args.verbose:
+            self.qt.join()
 
 
 if __name__ == "__main__":
