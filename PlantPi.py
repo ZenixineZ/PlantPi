@@ -1,15 +1,13 @@
-#!/usr/bin/python
-from gpiozero import DigitalOutputDevice
+#!/usr/bin/python3
 import time
 from datetime import datetime
 from time import sleep
-import Adafruit_ADS1x15 as ADS
 import requests
 import argparse
 import os
 import threading
-import getch
 import json
+from sshkeyboard import listen_keyboard, stop_listening
 import sys
 plantpi_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, plantpi_path)
@@ -22,9 +20,19 @@ parser.add_argument("-t", "--test",  action='store_true', help='Puts the PlantPi
 parser.add_argument("-s", "--server", help='The address of the machine running PlantPiServer.py to graph the data')
 parser.add_argument("-w", "--water",  action='store_true', help='Sets the PlantPi to constantly water the plant')
 parser.add_argument("-v", "--verbose",  action='store_true', help='Prints the sensor data on the console')
+parser.add_argument("--simulator", nargs='?', default="zeros", help='Simulates sensor data from a specified CSV file, or all zeros if no file is specified. For use when developing off-pi')
 parser.add_argument("-f", "--file", help='Path to a csv file to write data to')
 
 args = parser.parse_args()
+
+if args.simulator == "zeros":
+    args.simulator = None
+elif args.simulator == None:
+    args.simulator = "zeros"
+
+if not args.simulator:
+    import Adafruit_ADS1x15 as ADS
+    from gpiozero import DigitalOutputDevice
 
 #   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
 #   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
@@ -60,15 +68,21 @@ class PlantProfile:
         self.moisture_max = moisture_max
         self.light_min = light_min/10
         self.light_max = light_max/10
+        
+class FakePump:
+    def __init__(self):
+        self.value = 0
+    def on(self):
+        self.value = 1
+    def off(self):
+        self.value = 0
 
 class PlantPi:
 
     def __init__(self, plant_profile : PlantProfile, relay_gpio=14, channel_spec=ChannelSpec(), fill_time=5, fill_pad=0.9):
         self.plant_profile = plant_profile
         assert relay_gpio < 26
-        self.pump = DigitalOutputDevice(relay_gpio, active_high=False)
         self.channel_spec = channel_spec
-        self.qt = threading.Thread(target=self.query_thread, group=None)
         self.time = 0
         self.moisture_top = 0
         self.moisture_bottom = 0
@@ -76,7 +90,12 @@ class PlantPi:
         self.light2 = 0
         self.done = False
         # Create the ADC object using the I2C bus
-        self.adc = ADS.ADS1115()
+        if not args.simulator:
+            self.pump = DigitalOutputDevice(relay_gpio, active_high=False)
+            self.adc = ADS.ADS1115()
+        else:
+            self.pump = FakePump()
+            
         self.need_fill = False
         self.need_top_off = False
         self.start_fill = None
@@ -128,20 +147,26 @@ class PlantPi:
                     break
                 except requests.exceptions.RequestException:
                     sleep(10)
-
-    def query_thread(self):
-        while not self.done:
-            if getch.getch() == 's':
-                moisture_top = map_moisture(self.adc.read_adc(self.channel_spec.moisture_top)/32767)
-                moisture_bottom = map_moisture(self.adc.read_adc(self.channel_spec.moisture_bottom)/32767)
-                light1 = self.adc.read_adc(self.channel_spec.light1)/32767
-                light2 = self.adc.read_adc(self.channel_spec.light2)/32767
-                print(f'\r{time.time()}: Pump: {self.pump.value == 1}')
-                print(f'TOP: {moisture_top}')
-                print(f'BOTTOM: {moisture_bottom}')
-                print(f'Light 1: {light1}')
-                print(f'Light 2: {light2}\n')
-
+                    
+    def __del__(self):
+        try:
+            self.stop_watering()
+        except:
+            pass
+                    
+    def get_data(self):
+        if args.simulator:
+            mt = 0.0
+            mb = 0.0
+            l1 = 0.0
+            l2 = 0.0
+            return time.time(), mt, mb, l1, l2
+        else:
+            return time.time(), \
+                    self.adc.read_adc(self.channel_spec.moisture_top)/32767, \
+                    self.adc.read_adc(self.channel_spec.moisture_bottom)/32767, \
+                    self.adc.read_adc(self.channel_spec.light1)/32767, \
+                    self.adc.read_adc(self.channel_spec.light2)/32767
     def water(self):
         if(self.pump.value == 0):
             self.pump.on()
@@ -190,8 +215,35 @@ class PlantPi:
             self.need_top_off = True
             return self.water()
         self.need_top_off = False
-        return self.stop_watering()           
-                
+        return self.stop_watering()
+
+    def on_press(self, key):
+        if key == 's':
+            t, moisture_top, moisture_bottom, light1, light2 = self.get_data()
+            moisture_top = map_moisture(moisture_top)
+            moisture_bottom = map_moisture(moisture_bottom)
+            print(f'\r{get_time(t, False)}:\033[0m\nPump: {self.pump.value == 1}')
+            print(f'Top: {moisture_top}')
+            print(f'Bottom: {moisture_bottom}')
+            print(f'Light 1: {light1}')
+            print(f'Light 2: {light2}\n')
+        elif key == 'q':
+            self.done = True
+            with self.cond:
+                self.cond.notifyAll()
+            stop_listening()
+
+    def query_thread(self):
+        try:
+            print('Press "s" key to print sample')
+            print('Press "q" key to quit\n')
+            listen_keyboard(on_press=self.on_press, until=None)
+        except KeyboardInterrupt:
+            stop_listening()
+            self.done = True
+            with self.cond:
+                self.cond.notifyAll()
+
     def run(self):
         file = None
         if not args.file or not (len(os.path.dirname(args.file)) == 0 or os.path.exists(os.path.dirname(args.file))):
@@ -199,17 +251,15 @@ class PlantPi:
 
         print('Running...\n')
 
-        if not args.verbose:
-            print('Press "s" key to print sample')
+        if not args.verbose or not args.test:
+            self.cond = threading.Condition()
+            self.qt = threading.Thread(target=self.query_thread)
             self.qt.start()
+            
         try:
-            while True:
-
-                self.time = time.time()
-                self.moisture_top = self.adc.read_adc(self.channel_spec.moisture_top)/32767
-                self.moisture_bottom = self.adc.read_adc(self.channel_spec.moisture_bottom)/32767
-                self.light1 = self.adc.read_adc(self.channel_spec.light1)/32767
-                self.light2 = self.adc.read_adc(self.channel_spec.light2)/32767
+            while not self.done:
+                
+                self.time, self.moisture_top, self.moisture_bottom, self.light1, self.light2 = self.get_data()
 
                 mt = self.moisture_top
                 mb = self.moisture_bottom
@@ -238,7 +288,7 @@ class PlantPi:
                     self.last_pump_val = self.pump.value
 
                 if args.verbose:
-                    print(f'{self.time}: Pump: {self.pump.value == 1}')
+                    print(f'{get_time(self.time, False)}:\nPump: {self.pump.value == 1}')
                     print(f'TOP: {mt} -> {self.moisture_top}')
                     print(f'BOTTOM: {mb} -> {self.moisture_bottom}')
                     print(f'Light 1: {self.light1}')
@@ -280,14 +330,14 @@ class PlantPi:
                 if self.need_top_off or self.need_fill or args.test:
                     sleep(0.5)
                 else:
-                    sleep(1800)
+                    with self.cond:
+                        self.cond.wait_for(lambda : self.done==True, timeout=1800)
         except KeyboardInterrupt:
-            self.stop_watering()
+            pass
+        print("Quitting...")
+        stop_listening()
+        self.qt.join()
         self.stop_watering()
-        self.done = True
-        if not args.verbose:
-            self.qt.join()
-
 
 if __name__ == "__main__":
     test = PlantProfile(name="TEST", moisture_min=0, moisture_max=0, light_min=0, light_max=10)

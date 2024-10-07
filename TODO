@@ -1,8 +1,8 @@
 TODO:
     DEV:
-       -Fix query thread
        -create simulator
            -ramp up and down
+       -Test change to watering logic
        -port setup to python
        -V2:
            -central hub run by larger pi, up to four plants
