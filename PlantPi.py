@@ -13,15 +13,16 @@ plantpi_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, plantpi_path)
 import Emailer
 
-
 parser = argparse.ArgumentParser(description = "Run the Plant Pi")
 
 parser.add_argument("-t", "--test",  action='store_true', help='Puts the PlantPi into test mode where samples are always taken every half second rather than the usual half hour')
 parser.add_argument("-s", "--server", help='The address of the machine running PlantPiServer.py to graph the data')
 parser.add_argument("-w", "--water",  action='store_true', help='Sets the PlantPi to constantly water the plant')
 parser.add_argument("-v", "--verbose",  action='store_true', help='Prints the sensor data on the console')
-parser.add_argument("--simulator", nargs='?', default="zeros", help='Simulates sensor data from a specified CSV file, or all zeros if no file is specified. For use when developing off-pi')
 parser.add_argument("-f", "--file", help='Path to a csv file to write data to')
+parser.add_argument("-q", "--quiet",  action='store_true', help='Stops the PlantPi from sending email notifications')
+parser.add_argument("--simulator", nargs='?', default="zeros", help='Simulates sensor data from a specified CSV file, or all zeros if no file is specified. For use when developing off-pi')
+
 
 args = parser.parse_args()
 
@@ -29,7 +30,7 @@ if args.simulator == "zeros":
     args.simulator = None
 elif args.simulator == None:
     args.simulator = "zeros"
-
+    
 if not args.simulator:
     import Adafruit_ADS1x15 as ADS
     from gpiozero import DigitalOutputDevice
@@ -122,31 +123,43 @@ class PlantPi:
             if 'from' in auth:
                 self.email_from = auth['from']
                 
-        if self.email_user == None or self.email_pwd == None or self.email_to == None or self.email_from == None:
+        if self.email_user == None or self.email_pwd == None or self.email_to == None or self.email_from == None or args.quiet:
             self.email_user = None
             self.email_pwd = None
             self.email_to = None
             self.email_from = None
-            print('Warning: Failed to parse email_auth.json, notifications will be disabled')        
+            print('Warning: Failed to parse email_auth.json, notifications will be disabled')    
             
+        self.simu_seq = 0
+        self.last_simu_vals = []
+        self.simu = {}
+        if args.simulator != None and args.simulator != "zeros":
+            with open(args.simulator, 'r') as f:
+                for l in f.readlines()[1:]:
+                    if len(l) == 0:
+                        continue
+                    ls = l.split(',')
+                    self.simu[int(ls[0])] = float(ls[1]), float(ls[2]), float(ls[3]), float(ls[4])
+
+        self.qt = None
         # server ip
-        self.ip = '192.168.0.188'
-        if args.server:
-            self.ip = args.server
-        d = { \
-                'name': plant_profile.name, \
-                'moisture_min': plant_profile.moisture_min, \
-                'moisture_max': plant_profile.moisture_max, \
-                'light_min': plant_profile.light_min, \
-                'light_max': plant_profile.light_max \
-            }
-        if not args.water and not args.verbose and not args.file:
-            while True:
-                try:
-                    requests.post(f'http://{self.ip}:8080/plant', json=d)
-                    break
-                except requests.exceptions.RequestException:
-                    sleep(10)
+        # self.ip = '192.168.0.188'
+        # if args.server:
+        #     self.ip = args.server
+        # d = { \
+        #         'name': plant_profile.name, \
+        #         'moisture_min': plant_profile.moisture_min, \
+        #         'moisture_max': plant_profile.moisture_max, \
+        #         'light_min': plant_profile.light_min, \
+        #         'light_max': plant_profile.light_max \
+        #     }
+        # if not args.water and not args.verbose and not args.file:
+        #     while True:
+        #         try:
+        #             requests.post(f'http://{self.ip}:8080/plant', json=d)
+        #             break
+        #         except requests.exceptions.RequestException:
+        #             sleep(10)
                     
     def __del__(self):
         try:
@@ -160,6 +173,11 @@ class PlantPi:
             mb = 0.0
             l1 = 0.0
             l2 = 0.0
+            if len(self.simu):
+                if self.simu_seq in self.simu.keys():
+                    self.last_simu_vals = self.simu[self.simu_seq]
+                mt, mb, l1, l2 = self.last_simu_vals
+                self.simu_seq += 1
             return time.time(), mt, mb, l1, l2
         else:
             return time.time(), \
@@ -180,7 +198,7 @@ class PlantPi:
     def water_if_thirsty(self):
         # If we don't need to fill, check against the low threshold, otherwise, check against the high threshold so we fill it up to that point
         thresh = self.plant_profile.moisture_min
-        if self.need_fill:
+        if self.need_fill or self.need_top_off:
             thresh = self.plant_profile.moisture_max
 
         # If both sensors are above the threshold, dont water
@@ -190,10 +208,11 @@ class PlantPi:
             self.pause_fill = None
             self.start_fill = None
             return self.stop_watering()
-        # If the bottom sensor is below the threshold, water for fill_time seconds, 
+        
+        # If the bottom sensor is below the threshold and we aren't currently topping off, water for fill_time seconds, 
         # then wait for 2*fill_time seconds and then repeat if needed to let the water settle.
         # When filling, stop at 100*fill_coef % of max moisture level (for bottom sensor) to let water settle
-        if (not self.need_fill and self.moisture_bottom < thresh) or (self.need_fill and self.moisture_bottom < self.fill_pad*thresh):
+        if (not self.need_fill and not self.need_top_off and self.moisture_bottom < thresh ) or (self.need_fill and self.moisture_bottom < self.fill_pad*thresh):
             self.need_fill = True
             self.need_top_off = False                
 
@@ -210,6 +229,7 @@ class PlantPi:
         self.need_fill = False
         self.pause_fill = None
         self.start_fill = None
+        
         # Otherwise, only the top sensor below the threshold, water until it isn't. Don't water if bottom is too wet
         if self.moisture_top < thresh and self.moisture_bottom < self.plant_profile.moisture_max:
             self.need_top_off = True
@@ -309,23 +329,23 @@ class PlantPi:
                             file.write(header)
                         file.write(f'{self.time},{mt},{self.moisture_top},{mb},{self.moisture_bottom},{self.light1},{self.light2},{self.pump.value}\n')
 
-                if not args.file:          
-                    d = { \
-                         'time': self.time, \
-                         'moisture_top': self.moisture_top, \
-                         'moisture_bottom': self.moisture_bottom, \
-                         'light1': self.light1, \
-                         'light2': self.light2, \
-                         'pump': self.pump.value == 1 \
-                        }
+                # if not args.file:          
+                #     d = { \
+                #          'time': self.time, \
+                #          'moisture_top': self.moisture_top, \
+                #          'moisture_bottom': self.moisture_bottom, \
+                #          'light1': self.light1, \
+                #          'light2': self.light2, \
+                #          'pump': self.pump.value == 1 \
+                #         }
                     
-                    retry = 0
-                    while retry < 5:
-                        try:
-                            requests.post(f'http://{self.ip}:8080/data', json=d)
-                            break
-                        except requests.exceptions.RequestException:
-                            retry += 1                          
+                #     retry = 0
+                #     while retry < 5:
+                #         try:
+                #             requests.post(f'http://{self.ip}:8080/data', json=d)
+                #             break
+                #         except requests.exceptions.RequestException:
+                #             retry += 1                          
                 # Use a shorter 0.5 sec update when watering and a 30 min update otherwise
                 if self.need_top_off or self.need_fill or args.test:
                     sleep(0.5)
@@ -336,7 +356,8 @@ class PlantPi:
             pass
         print("Quitting...")
         stop_listening()
-        self.qt.join()
+        if self.qt:
+            self.qt.join()
         self.stop_watering()
 
 if __name__ == "__main__":
