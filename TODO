@@ -1,0 +1,37 @@
+TODO:
+    DEV:
+       -Fix query thread
+       -create simulator
+           -ramp up and down
+       -port setup to python
+       -V2:
+           -central hub run by larger pi, up to four plants
+               -X8 light and moisture sensors
+               -X4 submersible but strong pumps & relays
+               -Xwall power
+               -X16 adc channels
+               -8 more printed sensor covers
+               -light sensor housing(s) (only one if you can figure out how to make it bluetoth)
+               -Xlight strips, enough to make it look good (figure out the communication here (looks like some digital comm with a control unit))
+               -build control unit in or on to cistern unit, think of nicer cistern than home depot jug
+                   -maybe just a big clear jug with an opaque control box
+               -Xwatering ring, look for precanned or make shift
+               -Xhouse tubing and wires (and maybe lights) in a clear casing of some sort
+               -Xuse plugs for cable endings
+               -Xwater level indicator in cistern, look for precanned if not make using cork
+           -monitor pi that listens for heartbeat from plantpi and reports outtages
+           -control/config ui
+           -light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
+           -stores all data, interpolates old data away to achieve configurable size limit
+           -(I guess vnc in until you start at web dev) runs website tracker (ios compatible?) via home network
+           -add notification system, likely texts or emails for now
+               -digest of configurable time period of data
+               -sustained critical light or water reading
+               -refill cistern
+           -lighting system, different colors for different fill types, selectable patterns, music mode...?
+           -restart handling, service?
+       -Real time graph: find a better graphing library for growing graphs, 
+           ideally one that can be zoomed in easily on the new data
+    TEST:
+       -test moisture handling and revise thresholding if needed
+       

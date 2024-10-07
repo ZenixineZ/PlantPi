@@ -10,53 +10,13 @@ import os
 import threading
 import getch
 import json
-
-## TODO:
-#   -DEV:
-#       -port setup to python
-#       -V2:
-#           -central hub run by larger pi, up to four plants
-#               -X8 light and moisture sensors
-#               -X4 submersible but strong pumps & relays
-#               -Xwall power
-#               -X16 adc channels
-#               -8 more printed sensor covers
-#               -light sensor housing(s) (only one if you can figure out how to make it bluetoth)
-#               -Xlight strips, enough to make it look good (figure out the communication here (looks like some digital comm with a control unit))
-#               -build control unit in or on to cistern unit, think of nicer cistern than home depot jug
-#                   -maybe just a big clear jug with an opaque control box
-#               -Xwatering ring, look for precanned or make shift
-#               -Xhouse tubing and wires (and maybe lights) in a clear casing of some sort
-#               -Xuse plugs for cable endings
-#               -Xwater level indicator in cistern, look for precanned if not make using cork
-#           -monitor pi that listens for heartbeat from plantpi and reports outtages
-#           -control/config ui
-#           -light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
-#           -stores all data, interpolates old data away to achieve configurable size limit
-#           -(I guess vnc in until you start at web dev) runs website tracker (ios compatible?) via home network
-#           -add notification system, likely texts or emails for now
-#               -digest of configurable time period of data
-#               -sustained critical light or water reading
-#               -refill cistern
-#           -lighting system, different colors for different fill types, selectable patterns, music mode...?
-#           -restart handling, service?
-#       -Real time graph: find a better graphing library for growing graphs, 
-#           ideally one that can be zoomed in easily on the new data
-#   -TEST:
-#       -test moisture handling and revise thresholding if needed
-#       
-
-
-#   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
-#   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
-#   >=10:   0.283 -> wet
 import sys
 plantpi_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, plantpi_path)
 import Emailer
 
 
-parser = argparse.ArgumentParser(description = "Run the plant pi")
+parser = argparse.ArgumentParser(description = "Run the Plant Pi")
 
 parser.add_argument("-t", "--test",  action='store_true', help='Puts the PlantPi into test mode where samples are always taken every half second rather than the usual half hour')
 parser.add_argument("-s", "--server", help='The address of the machine running PlantPiServer.py to graph the data')
@@ -66,6 +26,9 @@ parser.add_argument("-f", "--file", help='Path to a csv file to write data to')
 
 args = parser.parse_args()
 
+#   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
+#   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
+#   >=10:   0.283 -> wet
 dry = 0.428
 wet = 0.283
 m = 8.5/(wet - dry)
