@@ -1,0 +1,4 @@
+SEQ,TOP,BOTTOM,LIGHT1,LIGHT2
+0,0.41,0.35,0.0,0.0 -> Starts here
+20,0.32,0.35,0.0,0.0 -> After 20 samples we switch to this level
+25,0.35,0.41,0.0,0.0 -> And so on...

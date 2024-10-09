@@ -7,6 +7,7 @@ __pycache__/
 *.so
 *.csv
 !moisture_*.csv
+!sample_simu.csv
 email_auth.json
 
 # Distribution / packaging
