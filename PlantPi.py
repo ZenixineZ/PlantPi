@@ -21,7 +21,7 @@ parser.add_argument("-w", "--water",  action='store_true', help='Sets the PlantP
 parser.add_argument("-v", "--verbose",  action='store_true', help='Prints the sensor data on the console')
 parser.add_argument("-f", "--file", default=os.path.join(plantpi_path, 'data.csv'),help='Path to a csv file to write data to')
 parser.add_argument("-q", "--quiet",  action='store_true', help='Stops the PlantPi from sending email notifications')
-parser.add_argument("-p", "--plant", default=None, help='Optional name of the plant profile to use')
+parser.add_argument("-p", "--plant", default=None, help='Optional name of the plant profile to use, may be filename (without .json), the name in the plant profile, a lowercase version of the name in the plant profile or a number that would usually be entered in the selection menu (might change)')
 parser.add_argument("--simulator", nargs='?', default="zeros", help='For use when developing off-pi, simulates sensor data from a specified CSV file, or all zeros if no file is specified. A sample simulation CSV file is present at sample_simu.csv')
 
 args = parser.parse_args()
@@ -178,8 +178,12 @@ class PlantPi:
                         self.profiles.append(pp)
                     except Exception as e:
                         log(f"Warning: Failed to parse {os.path.join(profile_path,f)} into PlantProfile: {e.message}")
-                if plant_profile_name and not self.plant_profile:
-                    log(f"Warning: Failed to find requested profile '{plant_profile_name}'")
+        if plant_profile_name and not self.plant_profile:
+            try:
+                self.plant_profile = self.profiles[int(plant_profile_name)-1]
+            except:
+                log(f"Warning: Failed to find requested profile '{plant_profile_name}'")
+                
                         
         if not self.plant_profile:
             if len(self.profiles) == 0:
