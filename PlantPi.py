@@ -110,6 +110,7 @@ class PlantPi:
         self.light1 = 0
         self.light2 = 0
         self.done = False
+        self.sample = False
         # Create the ADC object using the I2C bus
         if not args.simulator:
             self.pump = DigitalOutputDevice(relay_gpio, active_high=False)
@@ -253,6 +254,9 @@ class PlantPi:
               'light1': light1, \
               'light2': light2 \
             }
+        self.sample = True
+        with self.cond:
+            self.cond.notify_all()
         return jsonify(d)
     
     def water_rest(self):
@@ -380,14 +384,18 @@ class PlantPi:
 
     def on_press(self, key):
         if key == 's':
-            t, moisture_top, moisture_bottom, light1, light2 = self.get_data()
-            moisture_top = map_moisture(moisture_top)
-            moisture_bottom = map_moisture(moisture_bottom)
-            log(f'\rSample:\n{get_time(t, False)}:\nPump: {self.pump.value == 1}')
-            log(f'Top: {moisture_top}')
-            log(f'Bottom: {moisture_bottom}')
-            log(f'Light 1: {light1}')
-            log(f'Light 2: {light2}\n')
+            if not args.verbose:
+                t, moisture_top, moisture_bottom, light1, light2 = self.get_data()
+                moisture_top = map_moisture(moisture_top)
+                moisture_bottom = map_moisture(moisture_bottom)
+                log(f'\rSample:\n{get_time(t, False)}:\nPump: {self.pump.value == 1}')
+                log(f'Top: {moisture_top}')
+                log(f'Bottom: {moisture_bottom}')
+                log(f'Light 1: {light1}')
+                log(f'Light 2: {light2}\n')
+            self.sample = True
+            with self.cond:
+                self.cond.notify_all()
         elif key == 'q':
             self.done = True
             with self.cond:
@@ -497,7 +505,8 @@ class PlantPi:
                     sleep(0.5)
                 else:
                     with self.cond:
-                        self.cond.wait_for(lambda : (self.done==True or args.water==True), timeout=1800)
+                        self.cond.wait_for(lambda : (self.done==True or args.water==True or self.sample==True), timeout=1800)
+                        self.sample = False
         except KeyboardInterrupt:
             pass
         log("Quitting...")
