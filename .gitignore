@@ -9,6 +9,7 @@ __pycache__/
 !moisture_*.csv
 !sample_simu.csv
 email_auth.json
+*.DS_Store
 
 # Distribution / packaging
 .Python

@@ -3,19 +3,19 @@ TODO:
        	-V2:
        		-Test setup and port to python if it's too shaky
            	-central hub run by larger pi, up to four plants
-               	-X8 light and moisture sensors
-               	-X4 submersible but strong pumps & relays
-               	-Xwall power
-               	-X16 adc channels
+               	-8 moisture sensors, top only or top bottom
+               	-4 submersible but strong pumps & relays
+               	-wall power
+               	-16 adc channels
                	-8 more printed sensor covers
                	-light sensor housing(s) (only one if you can figure out how to make it bluetoth)
-               	-Xlight strips, enough to make it look good (figure out the communication here (looks like some digital comm with a control unit))
+               	-light strips, enough to make it look good (figure out the communication here (looks like some digital comm with a control unit))
                	-build control unit in or on to cistern unit, think of nicer cistern than home depot jug
                    	-maybe just a big clear jug with an opaque control box
-               	-Xwatering ring, look for precanned or make shift
-               	-Xhouse tubing and wires (and maybe lights) in a clear casing of some sort
-               	-Xuse plugs for cable endings
-               	-Xwater level indicator in cistern, look for precanned if not make using cork
+               	-watering ring, look for precanned or make shift
+               	-house tubing and wires (and maybe lights) in a clear casing of some sort
+               	-use plugs for cable endings
+               	-water level indicator in cistern, look for precanned if not make using cork
            	-monitor pi that listens for heartbeat from plantpi and reports outtages
            	-control/config ui
            	-light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
@@ -27,8 +27,27 @@ TODO:
                	-refill cistern
            	-lighting system, different colors for different fill types, selectable patterns, music mode...?
            	-restart handling, service?
-       	-Real time graph: find a better graphing library for growing graphs, 
-           	-ideally one that can be zoomed in easily on the new data
+       	    -Real time graph: find a better graphing library for growing graphs, 
+           	    -ideally one that can be zoomed in easily on the new data
+        -V3:
+            -camera for visaul monitoring and AI that can tell when overwatering and under sunning is occuring
     TEST:
        	-test moisture handling and revise thresholding if needed
+
+
+
+Existing Procuts
+
+    COMPETATORS: 
+        -leaaf (automated fully but expensive, $1k-2k)
+        -growbox (automated fully but expensive, $1k-2k)
+        -gorilla grow tent (semi automated, 300$)
+
+    -automated nutrient and water dlievery
+    -water and light control
+    -15 mins of weekly maintenance
+    -head control
+    -ventilation/humiditu control
+    -ph monitoring
+
        
