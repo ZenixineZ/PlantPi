@@ -58,15 +58,20 @@ def get_time(t=None, frac=True):
         return datetime.fromtimestamp(t).strftime(fmt_str)
     else:
         return datetime.fromtimestamp(time.time()).strftime(fmt_str)
-        
+       
+# TODO: improve logging
 def log(s):
     print(s)
     with open(logfile, 'a+') as lf:
         lf.write(s+'\n')
         
+# TODO: Refactor into soil profile with instructions on how to profile their soil
+#       Also see what claude thinks about this model and if there's a real mapping available
+
 #   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
 #   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
 #   >=10:   0.283 -> wet
+
 dry = 0.428
 wet = 0.283
 m = 8.5/(wet - dry)
@@ -154,6 +159,7 @@ class PlantPi:
             self.email_pwd = None
             self.email_to = None
             self.email_from = None
+            # TODO: do more thorough validation with better error messages
             if not args.quiet:
                 log('Warning: Failed to parse email_auth.json, notifications will be disabled\n')    
             
@@ -182,7 +188,7 @@ class PlantPi:
                             self.plant_profile = pp
                         self.profiles.append(pp)
                     except Exception as e:
-                        log(f"Warning: Failed to parse {os.path.join(profile_path,f)} into PlantProfile: {e.message}")
+                        log(f"Warning: Failed to parse {os.path.join(profile_path,f)} into PlantProfile: {e}")
         if plant_profile_name and not self.plant_profile:
             try:
                 self.plant_profile = self.profiles[int(plant_profile_name)-1]
@@ -506,7 +512,7 @@ class PlantPi:
                             self.emailer.send_email(self.email_user, self.email_pwd, self.email_to, self.email_from, "PlantPi Pump Activated", msg)
                             log(f'Email sent from {self.email_from} to {self.email_to}\n')
                         except Exception as e:
-                            log(f'Warning: Failed to send notification email: {e.message}\n', flush=True)
+                            log(f'Warning: Failed to send notification email: {e}\n', flush=True)
                     self.last_pump_val = self.pump.value
 
                 if args.verbose:
