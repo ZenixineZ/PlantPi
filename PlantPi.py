@@ -100,7 +100,7 @@ class FakePump:
         self.value = 0
 
 class PlantPi:
-    def __init__(self, plant_profile_name, relay_gpio=14, channel_spec=ChannelSpec(), fill_time=5, fill_pad=0.9):
+    def __init__(self, plant_profile_name, relay_gpio=14, channel_spec=ChannelSpec(), fill_time=5, fill_pad=0.9, max_continuous=30, max_daily=300):
         self.plant_profile = None
         assert relay_gpio < 26
         self.channel_spec = channel_spec
@@ -117,7 +117,12 @@ class PlantPi:
             self.adc = ADS.ADS1115()
         else:
             self.pump = FakePump()
-            
+        self.sensor_issue = False
+        self.max_continouous = max_continuous
+        # TODO: Remove start_fill and just use water_start_time?
+        self.water_start_time = None
+        self.max_daily = max_daily
+        self.total_water_time = 0.0
         self.need_fill = False
         self.need_top_off = False
         self.start_fill = None
@@ -336,15 +341,35 @@ class PlantPi:
                     self.adc.read_adc(self.channel_spec.light2)/32767
     def water(self):
         if(self.pump.value == 0):
+            self.water_start_time = self.time
             self.pump.on()
             log('Pump On\n')
     
     def stop_watering(self):
         if(self.pump.value == 1):
+            self.water_start_time = None
             self.pump.off()
             log('Pump Off\n')
 
     def water_if_thirsty(self):
+        # If we've hit our max continuous or max daily warn the user
+        if self.water_start_time:
+            on_time = self.time - self.water_start_time
+            if on_time > self.max_continouous:
+                msg = 'Error: Pump has been on for over {self.max_continouous} seconds. Shutting down, please inspect sensor data and replace if faulty'
+                log(msg)
+                # TODO: actually make this function
+                alert(msg)
+                self.stop_watering()
+                raise RuntimeError(msg)
+        if self.total_water_time > self.max_daily:
+            msg = 'Error: Pump has been on for over {self.max_daily} seconds throughout the day. Shutting down, please inspect sensor data and replace if faulty'
+            log(msg)
+            # TODO: actually make this function
+            alert(msg)
+            self.stop_watering()
+            raise RuntimeError(msg)
+        
         # If we don't need to fill, check against the low threshold, otherwise, check against the high threshold so we fill it up to that point
         thresh = self.plant_profile.moisture_min
         if self.need_fill or self.need_top_off:
@@ -466,6 +491,9 @@ class PlantPi:
                     continue
 
                 self.water_if_thirsty()  
+                if self.water_start_time:
+                    self.total_water_time += self.time - self.water_start_time
+                
                 if self.email_user and self.email_pwd and self.email_to and self.email_from:
                     if self.pump.value == 1 and self.last_pump_val == 0 and not self.pause_fill:
                         msg = f'{get_time(self.time, False)}\n' \
