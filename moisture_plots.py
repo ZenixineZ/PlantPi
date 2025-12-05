@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Sep 15 02:40:10 2024
-
-@author: zenix
-"""
-
 import os
 from matplotlib import pyplot as plt
 from datetime import datetime

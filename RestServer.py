@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Oct  7 00:43:05 2024
-
-@author: zenix
-"""
 from flask import Flask
 
 from werkzeug.serving import make_server

@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Sep 20 15:16:23 2024
-
-@author: zenix
-"""
 from email.mime.text import MIMEText
 import smtplib
 
