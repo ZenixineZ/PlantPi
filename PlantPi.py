@@ -326,7 +326,15 @@ class PlantPi:
             self.stop_watering()
         except:
             pass
-                    
+
+    def alert(self, subject, message):
+        if self.email_user and self.email_pwd and self.email_to and self.email_from:
+            try:
+                self.emailer.send_email(self.email_user, self.email_pwd, self.email_to, self.email_from, subject, message)
+                log(f'Email sent from {self.email_from} to {self.email_to}\n')
+            except Exception as e:
+                log(f'Warning: Failed to send notification email: {e}\n', flush=True)
+
     def get_data(self):
         if args.simulator:
             mt = 0.0
@@ -362,17 +370,17 @@ class PlantPi:
         if self.water_start_time:
             on_time = self.time - self.water_start_time
             if on_time > self.max_continouous:
-                msg = 'Error: Pump has been on for over {self.max_continouous} seconds. Shutting down, please inspect sensor data and replace if faulty'
+                subject = 'Pump Overuse Alert'
+                msg = f'Error: Pump has been on for over {self.max_continouous} seconds. Shutting down, please inspect sensor data and replace if faulty'
                 log(msg)
-                # TODO: actually make this function
-                alert(msg)
+                self.alert(subject, msg)
                 self.stop_watering()
                 raise RuntimeError(msg)
         if self.total_water_time > self.max_daily:
-            msg = 'Error: Pump has been on for over {self.max_daily} seconds throughout the day. Shutting down, please inspect sensor data and replace if faulty'
+            subject = 'Daily Pump Limit Exceeded Alert'
+            msg = f'Error: Pump has been on for over {self.max_daily} seconds throughout the day. Shutting down, please inspect sensor data and replace if faulty'
             log(msg)
-            # TODO: actually make this function
-            alert(msg)
+            self.alert(subject, msg)
             self.stop_watering()
             raise RuntimeError(msg)
         
