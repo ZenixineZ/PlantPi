@@ -59,25 +59,26 @@ def get_time(t=None, frac=True):
     else:
         return datetime.fromtimestamp(time.time()).strftime(fmt_str)
        
-# TODO: improve logging
 def log(s):
     print(s)
     with open(logfile, 'a+') as lf:
-        lf.write(s+'\n')
+        lf.write(f'[{get_time()}] {s}\n')
         
-# TODO: Refactor into soil profile with instructions on how to profile their soil
-#       Also see what claude thinks about this model and if there's a real mapping available
-
-#   Moisture Mapping, tested with resistive gardening probe, see moisture_mapping.pdf
+#   Moisture Mapping, tested with resistive gardening probe and capacative sensors attached to rpi
 #   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
 #   >=10:   0.283 -> wet
+class SoilProfile:
+    def __init__(self, dry_sensor=0.428, wet_sensor=0.283, dry_std=1.5, wet_std=10):
+        self.dry_sensor = dry_sensor
+        self.wet_sensor = wet_sensor
+        self.dry_std = dry_std
+        self.wet_std = wet_std
+        # y = mx + b, y is std moisture, x is sensor moisture
+        self._m = (wet_std - dry_std) / (wet_sensor - dry_sensor)
+        self._b = dry_std - self._m * dry_sensor
 
-dry = 0.428
-wet = 0.283
-m = 8.5/(wet - dry)
-b = -m*dry+1.5
-def map_moisture(moisture):
-    return max(0, min(10, m*moisture+b))
+    def map_moisture(self, moisture):
+        return max(0, min(10, self._m * moisture + self._b))
     
 
 class ChannelSpec:
@@ -105,10 +106,11 @@ class FakePump:
         self.value = 0
 
 class PlantPi:
-    def __init__(self, plant_profile_name, relay_gpio=14, channel_spec=ChannelSpec(), fill_time=5, fill_pad=0.9, max_continuous=30, max_daily=300):
+    def __init__(self, plant_profile_name, relay_gpio=14, channel_spec=ChannelSpec(), soil_profile=SoilProfile(), fill_time=5, fill_pad=0.9, max_continuous=30, max_daily=300):
         self.plant_profile = None
         assert relay_gpio < 26
         self.channel_spec = channel_spec
+        self.soil_profile = soil_profile
         self.time = 0
         self.moisture_top = 0
         self.moisture_bottom = 0
@@ -124,7 +126,6 @@ class PlantPi:
             self.pump = FakePump()
         self.sensor_issue = False
         self.max_continouous = max_continuous
-        # TODO: Remove start_fill and just use water_start_time?
         self.water_start_time = None
         self.max_daily = max_daily
         self.total_water_time = 0.0
@@ -154,14 +155,23 @@ class PlantPi:
             if 'from' in auth:
                 self.email_from = auth['from']
                 
-        if self.email_user == None or self.email_pwd == None or self.email_to == None or self.email_from == None or args.quiet:
+        fields = [('user', self.email_user), ('password', self.email_pwd),
+                  ('to', self.email_to), ('from', self.email_from)]
+        missing = [name for name, val in fields if val is None]
+        invalid = [name for name, val in fields
+                   if name != 'password' and val is not None
+                   and not ('@' in val and '.' in val.split('@')[-1])]
+
+        if missing or invalid or args.quiet:
+            if not args.quiet:
+                if missing:
+                    log(f'Warning: email_auth.json is missing fields {missing}, notifications will be disabled\n')
+                if invalid:
+                    log(f'Warning: email_auth.json has invalid email addresses for fields {invalid}, notifications will be disabled\n')
             self.email_user = None
             self.email_pwd = None
             self.email_to = None
             self.email_from = None
-            # TODO: do more thorough validation with better error messages
-            if not args.quiet:
-                log('Warning: Failed to parse email_auth.json, notifications will be disabled\n')    
             
         self.simu_seq = 0
         self.last_simu_vals = []
@@ -259,8 +269,8 @@ class PlantPi:
     
     def get_sample_rest(self):
         t, moisture_top, moisture_bottom, light1, light2 = self.get_data()
-        moisture_top = map_moisture(moisture_top)
-        moisture_bottom = map_moisture(moisture_bottom)
+        moisture_top = self.soil_profile.map_moisture(moisture_top)
+        moisture_bottom = self.soil_profile.map_moisture(moisture_bottom)
         d = { \
               'time': get_time(t, False), \
               'pump': self.pump.value == 1 ,\
@@ -429,8 +439,8 @@ class PlantPi:
         if key == 's':
             if not args.verbose:
                 t, moisture_top, moisture_bottom, light1, light2 = self.get_data()
-                moisture_top = map_moisture(moisture_top)
-                moisture_bottom = map_moisture(moisture_bottom)
+                moisture_top = self.soil_profile.map_moisture(moisture_top)
+                moisture_bottom = self.soil_profile.map_moisture(moisture_bottom)
                 log(f'\rSample:\n{get_time(t, False)}:\nPump: {self.pump.value == 1}')
                 log(f'Top: {moisture_top}')
                 log(f'Bottom: {moisture_bottom}')
@@ -492,8 +502,8 @@ class PlantPi:
 
                 mt = self.moisture_top
                 mb = self.moisture_bottom
-                self.moisture_top = map_moisture(self.moisture_top)
-                self.moisture_bottom = map_moisture(self.moisture_bottom)
+                self.moisture_top = self.soil_profile.map_moisture(self.moisture_top)
+                self.moisture_bottom = self.soil_profile.map_moisture(self.moisture_bottom)
                 
                 if args.water:
                     self.water()
