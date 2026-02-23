@@ -333,7 +333,7 @@ class PlantPi:
                 self.emailer.send_email(self.email_user, self.email_pwd, self.email_to, self.email_from, subject, message)
                 log(f'Email sent from {self.email_from} to {self.email_to}\n')
             except Exception as e:
-                log(f'Warning: Failed to send notification email: {e}\n', flush=True)
+                log(f'Warning: Failed to send notification email: {e}\n')
 
     def get_data(self):
         if args.simulator:
@@ -508,20 +508,15 @@ class PlantPi:
                 if self.water_start_time:
                     self.total_water_time += self.time - self.water_start_time
                 
-                if self.email_user and self.email_pwd and self.email_to and self.email_from:
-                    if self.pump.value == 1 and self.last_pump_val == 0 and not self.pause_fill:
-                        msg = f'{get_time(self.time, False)}\n' \
-                              f'Pump: {self.pump.value == 1}\n' \
-                              f'Top: {self.moisture_top}\n' \
-                              f'Bottom: {self.moisture_bottom}\n' \
-                              f'Light 1: {self.light1}\n' \
-                              f'Light 2: {self.light2}\n'
-                        try:
-                            self.emailer.send_email(self.email_user, self.email_pwd, self.email_to, self.email_from, "PlantPi Pump Activated", msg)
-                            log(f'Email sent from {self.email_from} to {self.email_to}\n')
-                        except Exception as e:
-                            log(f'Warning: Failed to send notification email: {e}\n', flush=True)
-                    self.last_pump_val = self.pump.value
+                if self.pump.value == 1 and self.last_pump_val == 0 and not self.pause_fill:
+                    msg = f'{get_time(self.time, False)}\n' \
+                          f'Pump: {self.pump.value == 1}\n' \
+                          f'Top: {self.moisture_top}\n' \
+                          f'Bottom: {self.moisture_bottom}\n' \
+                          f'Light 1: {self.light1}\n' \
+                          f'Light 2: {self.light2}\n'
+                    self.alert("PlantPi Pump Activated", msg)
+                self.last_pump_val = self.pump.value
 
                 if args.verbose:
                     log(f'{get_time(self.time, False)}:\nPump: {self.pump.value == 1}')
