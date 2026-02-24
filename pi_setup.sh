@@ -79,10 +79,27 @@ echo "Running initial PlantPi setup, you will be asked for a sudo password to in
 echo "Apt updating and upgrading..."
 sudo apt update && \
 sudo apt -y upgrade && \ 
-echo "Apt installing [vim, python3, ssh, realvnc-vnc-server]..." && \
-sudo apt install -y vim python3 ssh realvnc-vnc-server && \
-echo "Pip installing [gpiozero, matplotlib, Adafruit_ADS1x15]..." && \
-pip3 install gpiozero matplotlib Adafruit_ADS1x15 || die "Failed to install needed packages"
+echo "Apt installing [vim, ssh, curl, git, realvnc-vnc-server, pyenv build deps]..." && \
+sudo apt install -y vim ssh curl git realvnc-vnc-server \
+    make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+    libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev libxml2-dev \
+    libxmlsec1-dev libffi-dev liblzma-dev || die "Failed to install system packages"
+echo "Installing pyenv..."
+curl https://pyenv.run | bash || die "Failed to install pyenv"
+export PYENV_ROOT="\$HOME/.pyenv"
+export PATH="\$PYENV_ROOT/bin:\$PATH"
+eval "\$(pyenv init -)"
+cat >> ~/.bashrc << 'BASHRC'
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+BASHRC
+PYTHON_VER=\$(pyenv latest 3.12)
+echo "Installing Python \$PYTHON_VER via pyenv (this may take several minutes on a Pi)..."
+pyenv install \$PYTHON_VER || die "Failed to install Python \$PYTHON_VER via pyenv"
+pyenv global \$PYTHON_VER
+echo "Pip installing PlantPi dependencies..."
+pip install gpiozero matplotlib Adafruit_ADS1x15 flask sshkeyboard werkzeug || die "Failed to install Python packages"
 mkdir -p ~/git || die "Failed to make '~/git' directory"
 pushd git
 git clone https://github.com/ZenixineZ/PlantPi.git || die "Failed to clone PlantPi from github"
@@ -91,6 +108,33 @@ popd
 sudo raspi-config nonint do_i2c 1
 sudo raspi-config nonint do_spi 1
 sudo raspi-config nonint do_vnc 1
+
+echo "Writing systemd service file..."
+SERVICE_USER=\$(whoami)
+SERVICE_HOME=\$(eval echo "~\$SERVICE_USER")
+cat > /tmp/plantpi.service << SVCEOF
+[Unit]
+Description=PlantPi Plant Watering System
+After=network.target
+
+[Service]
+Type=simple
+User=\$SERVICE_USER
+WorkingDirectory=\$SERVICE_HOME/git/PlantPi
+Environment="PYENV_ROOT=\$SERVICE_HOME/.pyenv"
+Environment="PATH=\$SERVICE_HOME/.pyenv/shims:\$SERVICE_HOME/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=\$SERVICE_HOME/.pyenv/shims/python3 -u \$SERVICE_HOME/git/PlantPi/PlantPi.py -c \$SERVICE_HOME/git/PlantPi/plantpi.json
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+sudo mv /tmp/plantpi.service /etc/systemd/system/plantpi.service
+sudo systemctl daemon-reload
+sudo systemctl enable plantpi
 set +x
 
 EOF

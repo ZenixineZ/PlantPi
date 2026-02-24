@@ -21,6 +21,7 @@ DEFAULT_MAX_CONTINUOUS = float(os.environ.get('PLANTPI_MAX_CONTINUOUS', 30))
 DEFAULT_MAX_DAILY      = float(os.environ.get('PLANTPI_MAX_DAILY',      300))
 DEFAULT_SOIL_PROFILE   =       os.environ.get('PLANTPI_SOIL_PROFILE',   'default')
 DEFAULT_DATA_LIMIT     =   int(os.environ.get('PLANTPI_DATA_LIMIT',    100000000))
+STATE_FILE             =       os.path.join(plantpi_path, 'state.json')
 
 parser = argparse.ArgumentParser(description="Run the Plant Pi")
 
@@ -420,6 +421,7 @@ class PlantPi:
         self.kb_water_indices = set()  # number keys held with 'w'; empty = all plants
         self.cond = threading.Condition()
         self.qt = None
+        self._load_state()
 
     def _cli_waters(self, plant_idx):
         """True if the --water flag targets this plant index."""
@@ -561,6 +563,36 @@ class PlantPi:
             except Exception as e:
                 log(f'Warning: Failed to send notification email: {e}\n')
 
+    def _load_state(self):
+        today = datetime.now().strftime('%Y-%m-%d')
+        if not os.path.exists(STATE_FILE):
+            return
+        try:
+            with open(STATE_FILE, 'r') as f:
+                state = json.load(f)
+            if state.get('date') != today:
+                return
+            for i, pc in enumerate(self.plant_controllers):
+                saved = state.get('plants', [])[i] if i < len(state.get('plants', [])) else {}
+                wt = float(saved.get('total_water_time', 0))
+                if wt > 0:
+                    pc.total_water_time = wt
+                    log(f"Plant {i}: restored {wt:.1f}s daily water time from previous session")
+        except Exception as e:
+            log(f"Warning: failed to load state from {STATE_FILE}: {e}")
+
+    def _save_state(self):
+        today = datetime.now().strftime('%Y-%m-%d')
+        state = {
+            'date': today,
+            'plants': [{'total_water_time': pc.total_water_time} for pc in self.plant_controllers]
+        }
+        try:
+            with open(STATE_FILE, 'w') as f:
+                json.dump(state, f)
+        except Exception as e:
+            log(f"Warning: failed to save state to {STATE_FILE}: {e}")
+
     def on_press(self, key):
         if key == 's':
             if not args.verbose:
@@ -660,6 +692,8 @@ class PlantPi:
                     else:
                         pc.water_if_thirsty(self.time, self.alert)
 
+                self._save_state()
+
                 # Pump activation email alerts
                 for pc in self.plant_controllers:
                     if pc.pump.value == 1 and pc.last_pump_val == 0 and not pc.pause_fill:
@@ -735,6 +769,7 @@ class PlantPi:
         self.rest_server.stop()
         for pc in self.plant_controllers:
             pc.stop_watering()
+        self._save_state()
 
 
 if __name__ == "__main__":
