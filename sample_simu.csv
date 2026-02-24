@@ -1,4 +1,4 @@
-SEQ,CH0,CH1,CH2,CH3,CH4,CH5,CH6,CH7
-0,0.41,0.41,0.0,0.0,0.35,0.35,0.0,0.0 -> Starts here (CH0+CH1 = dry top sensors, CH4+CH5 = dry bottom sensors)
-20,0.32,0.32,0.0,0.0,0.35,0.35,0.0,0.0 -> After 20 samples top sensors become wet
-25,0.35,0.35,0.0,0.0,0.41,0.41,0.0,0.0 -> After 25 samples bottom sensors become dry
+TIME,CH0,CH1,CH2,CH3,CH4,CH5,CH6,CH7
+0,0.41,0.41,0.0,0.0,0.35,0.35,0.0,0.0
+10,0.32,0.32,0.0,0.0,0.35,0.35,0.0,0.0
+12.5,0.35,0.35,0.0,0.0,0.41,0.41,0.0,0.0

@@ -1,0 +1,53 @@
+{
+  "file": "simu/topoff_data.csv",
+  "test": true,
+  "verbose": true,
+  "quiet": true,
+  "simulator": "simu/topoff_sample.csv",
+  "plants": [
+    {
+      "profile": "dracaena",
+      "top_channel": 0,
+      "bottom_channel": 1,
+      "gpio": 14,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    },
+    {
+      "profile": "dracaena",
+      "top_channel": 2,
+      "bottom_channel": 3,
+      "gpio": 15,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    },
+    {
+      "profile": "dracaena",
+      "top_channel": 4,
+      "bottom_channel": 5,
+      "gpio": 16,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    },
+    {
+      "profile": "dracaena",
+      "top_channel": 6,
+      "bottom_channel": 7,
+      "gpio": 17,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    }
+  ]
+}

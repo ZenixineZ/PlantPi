@@ -1,0 +1,7 @@
+# Single plant: top sensor only (CH0), needs fill
+# CH0=top
+TIME,CH0,CH1,CH2,CH3,CH4,CH5,CH6,CH7
+0,0.42,0,0,0,0,0,0,0
+4,0.40,0,0,0,0,0,0,0
+7,0.36,0,0,0,0,0,0,0
+9,0.34,0,0,0,0,0,0,0

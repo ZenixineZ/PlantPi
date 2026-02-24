@@ -61,6 +61,7 @@ if args.simulator is None:
         args.simulator = sim_cfg
 args.plants = config.get('plants', [])
 args.data_limit = config.get('data_limit', DEFAULT_DATA_LIMIT)
+args.simu_quit = config.get('simu_quit', True)
 
 if not args.simulator:
     import Adafruit_ADS1x15 as ADS
@@ -399,18 +400,19 @@ class PlantPi:
             self.email_from = None
 
         # Simulator setup
-        self.simu_seq = 0
-        self.simu = {}        # seq -> {global_channel_idx: float}
+        self.simu_rows = []   # list of (time_offset_float, {global_ch: val}) sorted by time
+        self.simu_ptr  = 0    # index of next pending row
+        self.simu_start = None  # wall-clock time of first simulator call
         if args.simulator and args.simulator != "zeros":
             with open(args.simulator, 'r') as f:
-                f.readline()  # skip header (SEQ,CH0,CH1,...,CH7)
                 for l in f:
                     l = l.strip()
-                    if not l:
+                    if not l or l.startswith('#') or l.startswith('TIME'):
                         continue
                     ls = l.split(',')
-                    seq = int(ls[0])
-                    self.simu[seq] = {i: float(ls[i + 1]) for i in range(min(8, len(ls) - 1))}
+                    t = float(ls[0])
+                    self.simu_rows.append((t, {i: float(ls[i + 1]) for i in range(min(8, len(ls) - 1))}))
+            self.simu_rows.sort(key=lambda r: r[0])
 
         self.done = False
         self.sample = False
@@ -432,10 +434,13 @@ class PlantPi:
         return not self.kb_water_indices or plant_idx in self.kb_water_indices  # empty set = all
 
     def advance_simulator(self):
-        if self.simu_seq in self.simu:
-            for ch, val in self.simu[self.simu_seq].items():
+        if self.simu_start is None:
+            self.simu_start = self.time
+        elapsed = self.time - self.simu_start
+        while self.simu_ptr < len(self.simu_rows) and self.simu_rows[self.simu_ptr][0] <= elapsed:
+            for ch, val in self.simu_rows[self.simu_ptr][1].items():
                 self.adcs[ch // 4].values[ch % 4] = val
-        self.simu_seq += 1
+            self.simu_ptr += 1
 
     def get_data_rest(self):
         d = request.data
@@ -700,6 +705,13 @@ class PlantPi:
                                 row_parts += [str(pc.moisture_bottom_raw), str(pc.moisture_bottom)]
                             row_parts.append(str(pc.pump.value))
                         f.write(','.join(row_parts) + '\n')
+
+                # Auto-quit when simulator data is exhausted and no plant needs watering
+                if args.simu_quit and args.simulator and args.simulator != "zeros" and \
+                        self.simu_ptr >= len(self.simu_rows) and \
+                        not any(pc.need_fill or pc.need_top_off for pc in self.plant_controllers):
+                    self.done = True
+                    continue
 
                 # Sleep: fast loop when any plant is actively watering or in test mode
                 any_active = any(pc.need_top_off or pc.need_fill for pc in self.plant_controllers)

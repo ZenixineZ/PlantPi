@@ -106,11 +106,11 @@ Bottom columns are omitted for plants with no bottom sensor.
 
 ### Simulator CSV Format (`--simulator <file>`)
 ```
-SEQ,CH0,CH1,CH2,CH3,CH4,CH5,CH6,CH7
+TIME,CH0,CH1,CH2,CH3,CH4,CH5,CH6,CH7
 0,0.41,0.41,0.0,0.0,0.35,0.35,0.0,0.0
-20,0.32,0.32,0.0,0.0,0.35,0.35,0.0,0.0
+10,0.32,0.32,0.0,0.0,0.35,0.35,0.0,0.0
 ```
-SEQ is a sample sequence number; the simulator holds each row's values until the next SEQ is reached. Channels not used by any `--plant` spec can be left at 0.
+`TIME` is seconds from session start (floats allowed). Each row's values take effect when elapsed time reaches that offset and remain active until the next row fires. Multiple rows can fire in one loop iteration if the loop was slow. Channels not used by any `--plant` spec can be left at 0.
 
 ### Configuration Files
 **`email_auth.json`** — copy from `email_auth_sample.json`:

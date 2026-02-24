@@ -1,0 +1,10 @@
+# Plant 0 (CH0=top, CH1=bot): top-off   — bottom pre-satisfied (6.66), top dry->wet at t=5
+# Plant 1 (CH2=top, CH3=bot): bot fill  — bottom dry->satisfied, top already above max
+# Plant 2 (CH4=top, CH5=bot): in range  — slow drift, no watering needed
+# Plant 3 (CH6=top, CH7=bot): in range  — slow drift, no watering needed
+TIME,CH0,CH1,CH2,CH3,CH4,CH5,CH6,CH7
+0,0.42,0.34,0.33,0.42,0.37,0.37,0.37,0.37
+4,0.42,0.34,0.33,0.40,0.37,0.37,0.38,0.37
+5,0.32,0.34,0.33,0.40,0.38,0.38,0.38,0.37
+7,0.32,0.34,0.33,0.36,0.38,0.38,0.39,0.38
+9,0.32,0.34,0.33,0.34,0.39,0.38,0.39,0.39
