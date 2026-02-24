@@ -14,43 +14,53 @@ sys.path.insert(0, plantpi_path)
 from Emailer import Emailer
 from RestServer import RestServer
 
-DEFAULT_FILL_TIME = 5
-DEFAULT_FILL_PAD = 0.9
-DEFAULT_MAX_CONTINUOUS = 30
-DEFAULT_MAX_DAILY = 300
-DEFAULT_SOIL_PROFILE = 'default'
+DEFAULT_FILE_PATH      =       os.environ.get('PLANTPI_FILE_PATH',      os.path.join(plantpi_path, 'data.csv'))
+DEFAULT_FILL_TIME      = float(os.environ.get('PLANTPI_FILL_TIME',      5))
+DEFAULT_FILL_PAD       = float(os.environ.get('PLANTPI_FILL_PAD',       0.9))
+DEFAULT_MAX_CONTINUOUS = float(os.environ.get('PLANTPI_MAX_CONTINUOUS', 30))
+DEFAULT_MAX_DAILY      = float(os.environ.get('PLANTPI_MAX_DAILY',      300))
+DEFAULT_SOIL_PROFILE   =       os.environ.get('PLANTPI_SOIL_PROFILE',   'default')
+DEFAULT_DATA_LIMIT     =   int(os.environ.get('PLANTPI_DATA_LIMIT',    100000000))
 
 parser = argparse.ArgumentParser(description="Run the Plant Pi")
 
+parser.add_argument("-c", "--config", default=os.path.join(plantpi_path, 'plantpi.json'),
+                    help='Path to JSON config file (default: plantpi.json in script dir)')
 parser.add_argument("-t", "--test", action='store_true',
                     help='Test mode: sample every 0.5s instead of 30 min')
 parser.add_argument("-w", "--water", nargs='*', type=int, default=None, metavar='PLANT_IDX',
                     help='Continuously water plants by index. No indices = all plants. E.g. -w 0 2')
 parser.add_argument("-v", "--verbose", action='store_true',
                     help='Print sensor data on the console each cycle')
-parser.add_argument("-f", "--file", default=os.path.join(plantpi_path, 'data.csv'),
+parser.add_argument("-f", "--file", default=DEFAULT_FILE_PATH,
                     help='Path to CSV file to write data to')
 parser.add_argument("-q", "--quiet", action='store_true',
                     help='Disable email notifications')
-parser.add_argument("--plant", action='append', metavar='PROFILE,TOP,BOTTOM,GPIO',
-                    help='Plant to manage: profile name, top ADC channel (or empty), '
-                         'bottom ADC channel (or empty), relay GPIO. At least one sensor required. '
-                         'Repeat for multiple plants. E.g. --plant dracaena,0,4,14 --plant palm,1,,15')
-parser.add_argument("--fill-times", nargs='+', type=float, default=[DEFAULT_FILL_TIME], metavar='S',
-                    help='Fill burst duration in seconds per plant (repeats last value if fewer than plants)')
-parser.add_argument("--fill-pads", nargs='+', type=float, default=[DEFAULT_FILL_PAD], metavar='F',
-                    help='Fill pad coefficient per plant')
-parser.add_argument("--max-continuous", nargs='+', type=float, default=[DEFAULT_MAX_CONTINUOUS], metavar='S',
-                    help='Max continuous pump-on seconds per plant before alert and shutdown')
-parser.add_argument("--max-daily", nargs='+', type=float, default=[DEFAULT_MAX_DAILY], metavar='S',
-                    help='Max total pump-on seconds per day per plant before alert and shutdown')
-parser.add_argument("--soil-profiles", nargs='+', default=[DEFAULT_SOIL_PROFILE], metavar='NAME',
-                    help='Soil profile name per plant, loaded from profiles/soil/<name>.json')
 parser.add_argument("--simulator", nargs='?', const="zeros", default=None,
                     help='Simulate sensor data from a CSV file (SEQ,CH0..CH7 format), '
                          'or all zeros if no file given')
 
 args = parser.parse_args()
+
+config = {}
+if os.path.exists(args.config):
+    with open(args.config) as f:
+        config = json.load(f)
+
+if not args.test:    args.test    = config.get('test',    False)
+if not args.verbose: args.verbose = config.get('verbose', False)
+if not args.quiet:   args.quiet   = config.get('quiet',   False)
+if args.water is None: args.water = config.get('water', None)
+if args.file == DEFAULT_FILE_PATH:
+    args.file = config.get('file', args.file)
+if args.simulator is None:
+    sim_cfg = config.get('simulator', None)
+    if sim_cfg is True:
+        args.simulator = "zeros"
+    elif sim_cfg:
+        args.simulator = sim_cfg
+args.plants = config.get('plants', [])
+args.data_limit = config.get('data_limit', DEFAULT_DATA_LIMIT)
 
 if not args.simulator:
     import Adafruit_ADS1x15 as ADS
@@ -130,11 +140,6 @@ class FakeADC:
     def read_adc(self, ch):
         return int(self.values.get(ch, 0.0) * 32767)
 
-
-
-def expand_to_n(lst, n, default):
-    """Extend list to length n by padding with default."""
-    return (lst + [default] * n)[:n]
 
 
 class PlantController:
@@ -271,7 +276,7 @@ class PlantController:
 class PlantPi:
     def __init__(self, plant_args):
         if not plant_args:
-            log('Error: At least one --plant argument is required. E.g. --plant dracaena,0,4,14')
+            log('Error: No plants configured. Add a "plants" array to plantpi.json.')
             sys.exit(1)
 
         # Load plant profiles from disk
@@ -287,57 +292,57 @@ class PlantPi:
                     except Exception as e:
                         log(f"Warning: Failed to parse {os.path.join(profile_path, f)} into PlantProfile: {e}")
 
-        # Load soil profiles
-        soil_profile_dir = os.path.join(profile_path, 'soil')
-        soil_profile_names = expand_to_n(args.soil_profiles, len(plant_args), DEFAULT_SOIL_PROFILE)
-        loaded_soil_profiles = []
-        for name in soil_profile_names:
-            if name == DEFAULT_SOIL_PROFILE:
-                loaded_soil_profiles.append(SoilProfile())
-            else:
-                path = os.path.join(soil_profile_dir, name + '.json')
-                if os.path.exists(path):
-                    with open(path) as f:
-                        j = json.load(f)
-                        loaded_soil_profiles.append(SoilProfile(
-                            j.get('dry_sensor', 0.428), j.get('wet_sensor', 0.283),
-                            j.get('dry_std', 1.5), j.get('wet_std', 10)))
-                else:
-                    log(f"Warning: soil profile '{name}' not found at {path}, using defaults")
-                    loaded_soil_profiles.append(SoilProfile())
-
-        # Expand per-plant vector args
-        n = len(plant_args)
-        fill_times = expand_to_n(args.fill_times, n, DEFAULT_FILL_TIME)
-        fill_pads = expand_to_n(args.fill_pads, n, DEFAULT_FILL_PAD)
-        max_continuous = expand_to_n(args.max_continuous, n, DEFAULT_MAX_CONTINUOUS)
-        max_daily = expand_to_n(args.max_daily, n, DEFAULT_MAX_DAILY)
-
         # Initialize ADCs (hardware or fake for simulator)
         if args.simulator:
             self.adcs = [FakeADC(), FakeADC()]
         else:
             self.adcs = [ADS.ADS1115(address=0x48), ADS.ADS1115(address=0x49)]
 
-        # Parse --plant args and build PlantControllers
+        soil_profile_dir = os.path.join(profile_path, 'soil')
+
+        # Build PlantControllers from config dicts
         self.plant_controllers = []
-        for i, plant_arg in enumerate(plant_args):
-            parts = plant_arg.split(',')
-            if len(parts) != 4:
-                log(f"Error: --plant '{plant_arg}': expected format PROFILE,TOP,BOTTOM,GPIO")
+        for i, plant_cfg in enumerate(plant_args):
+            profile_name   = plant_cfg.get('profile')
+            top_ch         = plant_cfg.get('top_channel')
+            bottom_ch      = plant_cfg.get('bottom_channel')
+            gpio           = plant_cfg.get('gpio')
+            soil_name      = plant_cfg.get('soil_profile', DEFAULT_SOIL_PROFILE)
+            fill_time      = plant_cfg.get('fill_time',      DEFAULT_FILL_TIME)
+            fill_pad       = plant_cfg.get('fill_pad',       DEFAULT_FILL_PAD)
+            max_continuous = plant_cfg.get('max_continuous', DEFAULT_MAX_CONTINUOUS)
+            max_daily      = plant_cfg.get('max_daily',      DEFAULT_MAX_DAILY)
+
+            if not profile_name:
+                log(f"Error: plant {i}: 'profile' is required")
                 sys.exit(1)
-            profile_name, top_str, bottom_str, gpio_str = parts
-            top_ch = int(top_str) if top_str else None
-            bottom_ch = int(bottom_str) if bottom_str else None
             if top_ch is None and bottom_ch is None:
-                log(f"Error: --plant '{plant_arg}': at least one sensor channel required")
+                log(f"Error: plant {i} ('{profile_name}'): at least one sensor channel required")
+                sys.exit(1)
+            if gpio is None:
+                log(f"Error: plant {i} ('{profile_name}'): 'gpio' is required")
                 sys.exit(1)
             try:
-                gpio = int(gpio_str)
+                gpio = int(gpio)
                 assert gpio < 26
             except (ValueError, AssertionError):
-                log(f"Error: --plant '{plant_arg}': invalid GPIO '{gpio_str}' (must be integer < 26)")
+                log(f"Error: plant {i} ('{profile_name}'): invalid GPIO '{gpio}' (must be integer < 26)")
                 sys.exit(1)
+
+            # Load soil profile
+            if soil_name == DEFAULT_SOIL_PROFILE:
+                soil_profile = SoilProfile()
+            else:
+                sp_path = os.path.join(soil_profile_dir, soil_name + '.json')
+                if os.path.exists(sp_path):
+                    with open(sp_path) as f:
+                        j = json.load(f)
+                        soil_profile = SoilProfile(
+                            j.get('dry_sensor', 0.428), j.get('wet_sensor', 0.283),
+                            j.get('dry_std', 1.5), j.get('wet_std', 10))
+                else:
+                    log(f"Warning: soil profile '{soil_name}' not found at {sp_path}, using defaults")
+                    soil_profile = SoilProfile()
 
             # Look up plant profile by name, lowercase name, or filename
             plant_profile = None
@@ -346,15 +351,15 @@ class PlantPi:
                     plant_profile = pp
                     break
             if plant_profile is None:
-                log(f"Error: --plant '{plant_arg}': profile '{profile_name}' not found in {profile_path}")
+                log(f"Error: plant {i}: profile '{profile_name}' not found in {profile_path}")
                 sys.exit(1)
 
             pump = DigitalOutputDevice(gpio, active_high=False) if not args.simulator else FakePump()
 
             self.plant_controllers.append(PlantController(
-                plant_profile, loaded_soil_profiles[i], self.adcs, pump, top_ch, bottom_ch,
-                fill_time=fill_times[i], fill_pad=fill_pads[i],
-                max_continuous=max_continuous[i], max_daily=max_daily[i]
+                plant_profile, soil_profile, self.adcs, pump, top_ch, bottom_ch,
+                fill_time=fill_time, fill_pad=fill_pad,
+                max_continuous=max_continuous, max_daily=max_daily
             ))
             log(f"Plant {i}: '{plant_profile.name}', top_ch={top_ch}, bottom_ch={bottom_ch}, gpio={gpio}")
 
@@ -448,7 +453,7 @@ class PlantPi:
                 i = len(lines)
                 while i > 0:
                     size = len(lines[i - 1].encode('utf-8'))
-                    if s + size > 100000000:
+                    if s + size > args.data_limit:
                         break
                     s += size
                     i -= 1
@@ -723,7 +728,7 @@ class PlantPi:
 if __name__ == "__main__":
     try:
         log("Starting PlantPi...\n")
-        pp = PlantPi(args.plant)
+        pp = PlantPi(args.plants)
         pp.run()
     except KeyboardInterrupt:
         log("\nQuitting...")
