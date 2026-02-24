@@ -444,13 +444,15 @@ class PlantPi:
         else:
             with open(args.file, 'r') as f:
                 lines = f.readlines()[1:]
-                s = sum(len(l.encode('utf-8')) for l in lines)
-                i = 1
-                while s > 100000000:
-                    s -= len(lines[i].encode('utf-8'))
-                    i += 1
-                if i > 1:
-                    del lines[1:i]
+                s = 0
+                i = len(lines)
+                while i > 0:
+                    size = len(lines[i - 1].encode('utf-8'))
+                    if s + size > 100000000:
+                        break
+                    s += size
+                    i -= 1
+                del lines[:i]
                 return jsonify(''.join(lines))
 
     def get_sample_rest(self):
