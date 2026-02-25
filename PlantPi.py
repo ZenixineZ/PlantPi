@@ -124,7 +124,7 @@ class SoilProfile:
 
 class PlantProfile:
     def __init__(self, name, moisture_min, moisture_max):
-        assert moisture_min >= 0 and moisture_max >= 0
+        assert moisture_min >= 0 and moisture_max >= 0 and moisture_min <= moisture_max
         self.name = name
         self.moisture_min = moisture_min
         self.moisture_max = moisture_max
@@ -409,16 +409,19 @@ class PlantPi:
         self.email_pwd = None
         self.email_to = None
         self.email_from = None
-        with open(os.path.join(plantpi_path, 'email_auth.json'), 'r') as f:
-            auth = json.load(f)
-            if 'user' in auth:
-                self.email_user = auth['user']
-            if 'password' in auth:
-                self.email_pwd = auth['password']
-            if 'to' in auth:
-                self.email_to = auth['to']
-            if 'from' in auth:
-                self.email_from = auth['from']
+        try:
+            with open(os.path.join(plantpi_path, 'email_auth.json'), 'r') as f:
+                auth = json.load(f)
+                if 'user' in auth:
+                    self.email_user = auth['user']
+                if 'password' in auth:
+                    self.email_pwd = auth['password']
+                if 'to' in auth:
+                    self.email_to = auth['to']
+                if 'from' in auth:
+                    self.email_from = auth['from']
+        except FileNotFoundError:
+            pass
 
         fields = [('user', self.email_user), ('password', self.email_pwd),
                   ('to', self.email_to), ('from', self.email_from)]
@@ -605,16 +608,20 @@ class PlantPi:
         pc = self.plant_controllers[plant_idx]
         msg = None
         if 'moisture_max' in j:
-            pc.plant_profile = PlantProfile(str(j['name']), float(j['moisture_min']), float(j['moisture_max']))
-            msg = f'Plant {plant_idx} profile set to:\n' + json.dumps(j, indent=4)
+            try:
+                pc.plant_profile = PlantProfile(str(j['name']), float(j['moisture_min']), float(j['moisture_max']))
+                msg = f'Plant {plant_idx} profile set to:\n' + json.dumps(j, indent=4)
+            except (KeyError, ValueError, AssertionError) as e:
+                return jsonify(f"Invalid profile fields: {e}"), 400
         else:
+            name = str(j.get('name', ''))
             for p in self.profiles:
-                if p.name == str(j['name']):
+                if p.name == name:
                     pc.plant_profile = p
                     msg = f'Plant {plant_idx} profile set to {p.name}'
                     break
         if not msg:
-            msg = f"Failed to set plant profile: Couldn't find requested profile '{str(j['name'])}'"
+            msg = f"Failed to set plant profile: Couldn't find requested profile '{str(j.get('name', ''))}'"
         log(msg + '\n')
         return jsonify(msg)
 
@@ -622,7 +629,7 @@ class PlantPi:
         for pc in getattr(self, 'plant_controllers', []):
             try:
                 pc.stop_watering()
-            except:
+            except Exception:
                 pass
 
     def _send_alert(self, subject, message):
@@ -630,7 +637,7 @@ class PlantPi:
             try:
                 self.emailer.send_email(self.email_user, self.email_pwd, self.email_to,
                                         self.email_from, subject, message)
-                log(f'[Email sent from {self.email_from} to {self.email_to}]\n')
+                log(f'[Email sent: {subject}]\n')
             except Exception as e:
                 log(f'Warning: Failed to send notification email: {e}\n')
 
@@ -863,16 +870,11 @@ class PlantPi:
                 # CSV logging
                 if args.file:
                     with open(args.file, 'a+') as f:
-                        t = f.tell()
                         f.seek(0)
-                        lines = f.readlines()
-                        f.seek(t)
-                        if len(lines) == 0:
-                            f.write(header)
-                        elif lines[0] != header:
+                        first_line = f.readline()
+                        if first_line != header:
                             f.truncate(0)
                             f.write(header)
-                            lines = [header]
                         row_parts = [str(self.time)]
                         for pc in self.plant_controllers:
                             row_parts.append(pc.plant_profile.name)
@@ -908,7 +910,7 @@ class PlantPi:
                             timeout=args.long_sample)
                         self.sample = False
 
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, RuntimeError):
             pass
         finally:
             self._flush_alerts()

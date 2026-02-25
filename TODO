@@ -1,7 +1,6 @@
 TODO:
    	-V2:
-        -[TEST] test moisture handling and revise thresholding if needed
-   		-[TEST] Test setup and port to python if it's too shaky
+        -[LIVE TEST] test moisture handling and revise thresholding if needed
        	-[HARDWARE] 
             -central hub run by larger pi, up to four plants
            	-8 moisture sensors, top only or top bottom
@@ -17,8 +16,6 @@ TODO:
            	-use 3d printed plugs for cable endings, you'll need 8 sockets with moulding to clip sensor wires in, and a hole to pass the pump feed through. Maybe just one pump and a set of computer controlled valves?
            	-water level indicator in cistern
         -[SOFTWARE]
-            -test trim handling
-            -alerts should be buffered until the run loop ending and then sent as one message
            	-control/config ui
                 -Real time graph: find a better graphing library for growing graphs, ideally one that can be zoomed in easily on the new data
            	-lighting system, different colors for different fill types, selectable patterns, music mode...?
