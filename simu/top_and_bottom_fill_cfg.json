@@ -1,9 +1,9 @@
 {
-  "file": "simu/topoff_data.csv",
+  "file": "simu/topand_bottom_data.csv",
   "test": true,
   "verbose": true,
   "quiet": true,
-  "simulator": "simu/topoff_sample.csv",
+  "simulator": "simu/top_and_bottom_sample.csv",
   "plants": [
     {
       "profile": "dracaena",
