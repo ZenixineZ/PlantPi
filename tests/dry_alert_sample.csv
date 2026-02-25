@@ -1,0 +1,8 @@
+# Top-only plant, dry for first 10s then goes wet.
+# dry_alert=3: alert fires after ~3 real seconds of moisture < min.
+# Pump cycles (fill_time=1) while dry; safety limits don't fire (max_continuous=30, max_daily=300).
+# At t=10 sensor goes wet, fill cycle satisfied, simu exhausted, app quits normally.
+# Expected: "Sustained Low Moisture" warning logged around t=3, then normal quit at t=10.
+TIME,CH0
+0,0.42
+10,0.28

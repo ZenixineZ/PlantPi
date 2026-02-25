@@ -1,0 +1,5 @@
+# Top-only plant, sensor stays permanently dry.
+# fill_time=1, max_daily=5: pump cycles (1s on, 2s off) until cumulative water time > 5s.
+# Expected: ~5 fill cycles, then RuntimeError, app exits cleanly.
+TIME,CH0
+0,0.42

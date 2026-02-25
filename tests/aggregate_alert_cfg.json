@@ -1,0 +1,30 @@
+{
+  "file": "tests/aggregate_alert_data.csv",
+  "test": true,
+  "verbose": true,
+  "quiet": false,
+  "long_sample": 5,
+  "simulator": "tests/aggregate_alert_sample.csv",
+  "plants": [
+    {
+      "profile": "dracaena",
+      "top_channel": 0,
+      "pump_gpio": 14,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "max_continuous": 30,
+      "max_daily": 300,
+      "dry_alert": 0
+    },
+    {
+      "profile": "dracaena",
+      "top_channel": 4,
+      "pump_gpio": 15,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "max_continuous": 30,
+      "max_daily": 300,
+      "dry_alert": 0
+    }
+  ]
+}

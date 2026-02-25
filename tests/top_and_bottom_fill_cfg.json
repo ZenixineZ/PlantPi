@@ -1,0 +1,56 @@
+{
+  "file": "tests/top_and_bottom_fill_data.csv",
+  "test": true,
+  "verbose": true,
+  "quiet": true,
+  "long_sample": 5,
+  "max_size": 5000,
+  "cistern_gpio": 18,
+  "simulator": "tests/top_and_bottom_fill_sample.csv",
+  "plants": [
+    {
+      "profile": "dracaena",
+      "top_channel": 0,
+      "bottom_channel": 1,
+      "pump_gpio": 14,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    },
+    {
+      "profile": "dracaena",
+      "top_channel": 2,
+      "bottom_channel": 3,
+      "pump_gpio": 15,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    },
+    {
+      "profile": "dracaena",
+      "top_channel": 4,
+      "bottom_channel": 5,
+      "pump_gpio": 16,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    },
+    {
+      "profile": "dracaena",
+      "top_channel": 6,
+      "bottom_channel": 7,
+      "pump_gpio": 17,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    }
+  ]
+}

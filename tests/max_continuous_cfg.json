@@ -1,0 +1,19 @@
+{
+  "file": "tests/max_continuous_data.csv",
+  "test": true,
+  "verbose": true,
+  "quiet": true,
+  "long_sample": 5,
+  "simulator": "tests/max_continuous_sample.csv",
+  "plants": [
+    {
+      "profile": "dracaena",
+      "top_channel": 0,
+      "pump_gpio": 14,
+      "soil_profile": "default",
+      "fill_time": 30,
+      "max_continuous": 3,
+      "max_daily": 300
+    }
+  ]
+}

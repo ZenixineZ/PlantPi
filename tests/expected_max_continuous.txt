@@ -1,0 +1,20 @@
+# Variable lines (marked with *):
+#   * "Plant 0: restored Xs daily water time from previous session" — depends on state.json
+#
+# Expected: pump turns on and stays on (fill_time=30 > max_continuous=3).
+# After ~3s the overuse safety fires: error logged, pump turned off, app exits cleanly.
+
+Starting PlantPi...
+
+Plant 0: 'Dragon Plant (Dracaena)', top_ch=0, bottom_ch=None, pump_gpio=14
+[*] Plant 0: restored Xs daily water time from previous session
+Running with 1 plant(s): 'Dragon Plant (Dracaena)'
+
+[Dragon Plant (Dracaena)] Pump On
+
+[... pump-on iterations ...]
+
+Error: [Dragon Plant (Dracaena)] Pump has been on for over 3 seconds. Shutting down, please inspect sensor data
+[Dragon Plant (Dracaena)] Pump Off
+
+Quitting...

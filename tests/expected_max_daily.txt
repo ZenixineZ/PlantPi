@@ -1,0 +1,15 @@
+# Variable lines (marked with *):
+#   * "Plant 0: restored Xs daily water time from previous session" — depends on state.json
+#
+# Expected: daily water limit (max_daily=5s) exceeded.
+# If state.json already has >= 5s accumulated from today, fires immediately without
+# any pump cycles. Otherwise fires after enough fill cycles accumulate 5s total.
+
+Starting PlantPi...
+
+Plant 0: 'Dragon Plant (Dracaena)', top_ch=0, bottom_ch=None, pump_gpio=14
+[*] Plant 0: restored Xs daily water time from previous session
+Running with 1 plant(s): 'Dragon Plant (Dracaena)'
+
+Error: [Dragon Plant (Dracaena)] Pump has been on for over 5 seconds today. Shutting down, please inspect sensor data
+Quitting...

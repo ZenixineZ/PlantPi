@@ -1,0 +1,38 @@
+# Variable lines (marked with *):
+#   * "Plant 0: restored Xs daily water time from previous session" — depends on state.json
+#
+# Expected: both plants start dry, both pumps activate in the same loop iteration.
+# The two pump-activation alerts are buffered and flushed as ONE aggregate email
+# with subject "[PlantPi] Multiple Alerts". Exactly 1 email before quit.
+# At t=2 both sensors go wet, fill stops, normal quit.
+
+Starting PlantPi...
+
+Plant 0: 'Dragon Plant (Dracaena)', top_ch=0, bottom_ch=None, pump_gpio=14
+Plant 1: 'Dragon Plant (Dracaena)', top_ch=4, bottom_ch=None, pump_gpio=15
+[*] Plant 0: restored Xs daily water time from previous session
+Running with 2 plant(s): 'Dragon Plant (Dracaena)', 'Dragon Plant (Dracaena)'
+
+[Dragon Plant (Dracaena)] Pump On
+[Dragon Plant (Dracaena)] Pump On
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   True
+  Top:    0.4200 -> 1.97
+Plant 1 (Dragon Plant (Dracaena)):
+  Pump:   True
+  Top:    0.4200 -> 1.97
+
+[Email sent: [PlantPi] Multiple Alerts]
+
+[Dragon Plant (Dracaena)] Pump Off
+[Dragon Plant (Dracaena)] Pump Off
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.2800 -> 10.00
+Plant 1 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.2800 -> 10.00
+
+Quitting...

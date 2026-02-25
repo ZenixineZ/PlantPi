@@ -10,6 +10,7 @@ __pycache__/
 state.json
 !sample_simu.csv
 !simu/*_sample.csv
+!tests/*_sample.csv
 email_auth.json
 *.DS_Store
 

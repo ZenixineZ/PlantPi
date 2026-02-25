@@ -1,0 +1,8 @@
+# Two plants, both start dry — both pumps activate in the same loop iteration.
+# Expected: first flush sends one "[PlantPi] Multiple Alerts" email combining
+# both pump-activation alerts. Subsequent fill cycles may also produce aggregate
+# emails if both pumps stay in sync. At t=10 both go wet, app quits normally.
+# dry_alert=0 so only pump-activation alerts fire.
+TIME,CH0,CH4
+0,0.42,0.42
+2,0.28,0.28

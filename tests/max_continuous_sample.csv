@@ -1,0 +1,5 @@
+# Top-only plant, sensor stays permanently dry.
+# fill_time=30 means the pump never self-pauses; max_continuous=3 fires first.
+# Expected: pump turns on, RuntimeError after ~3s, app exits cleanly.
+TIME,CH0
+0,0.42

@@ -1,0 +1,27 @@
+# Variable lines (marked with *):
+#   * "Plant 0: restored Xs daily water time from previous session" — depends on state.json
+#
+# Expected: plant stays dry for >dry_alert=3 real seconds despite fill cycles.
+# "Sustained Low Moisture" warning fires around t=3, email sent.
+# Multiple pump cycles fire as sensor stays dry until t=10.
+# At t=10 sensor goes wet (0.28 -> 10.00), fill stops, normal quit.
+
+Starting PlantPi...
+
+Plant 0: 'Dragon Plant (Dracaena)', top_ch=0, bottom_ch=None, pump_gpio=14
+[*] Plant 0: restored Xs daily water time from previous session
+Running with 1 plant(s): 'Dragon Plant (Dracaena)'
+
+[Dragon Plant (Dracaena)] Pump On
+[Dragon Plant (Dracaena)] Pump Off
+
+[Warning: [Dragon Plant (Dracaena)] moisture has been critically low for 0.0h (reading: 1.97, min: 3). Please inspect the plant and watering system.]
+
+[Email sent: [Dragon Plant (Dracaena)] Pump Activated]
+[Email sent: [Dragon Plant (Dracaena)] Sustained Low Moisture]
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.2800 -> 10.00
+
+Quitting...

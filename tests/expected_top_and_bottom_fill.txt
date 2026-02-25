@@ -1,0 +1,52 @@
+# Variable lines (marked with *):
+#   * "Plant 0: restored Xs daily water time from previous session" — depends on state.json
+#
+# Expected: 4 plants with top+bottom sensors.
+#   Plant 0: top dry (1.97), bottom satisfied (6.66) → top-off mode, pump on until top >= 7.83
+#   Plant 1: top satisfied (7.25), bottom dry (1.97) → bottom fill cycles until bottom >= 6.66
+#   Plant 2, 3: both in range (4.90) → no watering
+#   Cistern: starts OK, goes LOW mid-run, restores at end
+#   CSV trimmed repeatedly (max_size=5000)
+
+Starting PlantPi...
+
+Plant 0: 'Dragon Plant (Dracaena)', top_ch=0, bottom_ch=1, pump_gpio=14
+Plant 1: 'Dragon Plant (Dracaena)', top_ch=2, bottom_ch=3, pump_gpio=15
+Plant 2: 'Dragon Plant (Dracaena)', top_ch=4, bottom_ch=5, pump_gpio=16
+Plant 3: 'Dragon Plant (Dracaena)', top_ch=6, bottom_ch=7, pump_gpio=17
+Cistern sensor on GPIO 18
+[*] Plant 0: restored Xs daily water time from previous session
+Running with 4 plant(s): 'Dragon Plant (Dracaena)', 'Dragon Plant (Dracaena)', 'Dragon Plant (Dracaena)', 'Dragon Plant (Dracaena)'
+
+[Dragon Plant (Dracaena)] Pump On
+[Dragon Plant (Dracaena)] Pump On
+
+[... fill/top-off iterations for plants 0 and 1 ...]
+
+[Warning: Cistern water level is LOW]
+
+[... iterations with Cistern: LOW ...]
+
+CSV trimmed: 4KB -> 4KB
+
+[Cistern water level restored]
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.3200 -> 7.83
+  Bottom: 0.3400 -> 6.66
+Plant 1 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.3300 -> 7.25
+  Bottom: 0.3400 -> 6.66
+Plant 2 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.3900 -> 3.73
+  Bottom: 0.3800 -> 4.31
+Plant 3 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.3900 -> 3.73
+  Bottom: 0.3900 -> 3.73
+Cistern: OK
+
+Quitting...

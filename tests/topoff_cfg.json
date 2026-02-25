@@ -1,0 +1,22 @@
+{
+  "file": "tests/topoff_data.csv",
+  "test": true,
+  "verbose": true,
+  "quiet": true,
+  "long_sample": 5,
+  "max_size": 5000,
+  "cistern_gpio": 18,
+  "simulator": "tests/topoff_sample.csv",
+  "plants": [
+    {
+      "profile": "dracaena",
+      "top_channel": 0,
+      "pump_gpio": 14,
+      "soil_profile": "default",
+      "fill_time": 1,
+      "fill_pad": 0.9,
+      "max_continuous": 30,
+      "max_daily": 300
+    }
+  ]
+}

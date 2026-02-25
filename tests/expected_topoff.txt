@@ -1,0 +1,69 @@
+# Variable lines (marked with *):
+#   * "Plant 0: restored Xs daily water time from previous session" — depends on state.json
+#
+# Expected: 1 top-only plant fills 3 times (dry 1.97 → 6.66), cistern goes LOW/restores, normal quit.
+
+Starting PlantPi...
+
+Plant 0: 'Dragon Plant (Dracaena)', top_ch=0, bottom_ch=None, pump_gpio=14
+Cistern sensor on GPIO 18
+[*] Plant 0: restored Xs daily water time from previous session
+Running with 1 plant(s): 'Dragon Plant (Dracaena)'
+
+[Dragon Plant (Dracaena)] Pump On
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   True
+  Top:    0.4200 -> 1.97
+Cistern: OK
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   True
+  Top:    0.4200 -> 1.97
+Cistern: OK
+
+[Dragon Plant (Dracaena)] Pump Off
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.4200 -> 1.97
+Cistern: OK
+
+[... pause iterations ...]
+
+[Dragon Plant (Dracaena)] Pump On
+
+[... fill iterations ...]
+
+[Dragon Plant (Dracaena)] Pump Off
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.4000 -> 3.14
+Cistern: OK
+
+[... pause iterations ...]
+
+[Dragon Plant (Dracaena)] Pump On
+
+[... fill iterations ...]
+
+[Dragon Plant (Dracaena)] Pump Off
+
+[Warning: Cistern water level is LOW]
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.3600 -> 5.49
+Cistern: LOW
+
+[... iterations with Cistern: LOW ...]
+
+[Cistern water level restored]
+
+Plant 0 (Dragon Plant (Dracaena)):
+  Pump:   False
+  Top:    0.3400 -> 6.66
+Cistern: OK
+
+Quitting...
