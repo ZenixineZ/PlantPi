@@ -66,7 +66,7 @@ args.simu_quit = config.get('simu_quit', True)
 
 if not args.simulator:
     import Adafruit_ADS1x15 as ADS
-    from gpiozero import DigitalOutputDevice
+    from gpiozero import DigitalOutputDevice, DigitalInputDevice
 
 logpath = os.path.join(plantpi_path, 'logs')
 if not os.path.isdir(logpath):
@@ -133,6 +133,11 @@ class FakePump:
 
     def off(self):
         self.value = 0
+
+
+class FakeDigitalInput:
+    def __init__(self):
+        self.value = 1  # default: water present
 
 
 class FakeADC:
@@ -308,7 +313,7 @@ class PlantPi:
             profile_name   = plant_cfg.get('profile')
             top_ch         = plant_cfg.get('top_channel')
             bottom_ch      = plant_cfg.get('bottom_channel')
-            gpio           = plant_cfg.get('gpio')
+            gpio           = plant_cfg.get('pump_gpio')
             soil_name      = plant_cfg.get('soil_profile', DEFAULT_SOIL_PROFILE)
             fill_time      = plant_cfg.get('fill_time',      DEFAULT_FILL_TIME)
             fill_pad       = plant_cfg.get('fill_pad',       DEFAULT_FILL_PAD)
@@ -322,13 +327,13 @@ class PlantPi:
                 log(f"Error: plant {i} ('{profile_name}'): at least one sensor channel required")
                 sys.exit(1)
             if gpio is None:
-                log(f"Error: plant {i} ('{profile_name}'): 'gpio' is required")
+                log(f"Error: plant {i} ('{profile_name}'): 'pump_gpio' is required")
                 sys.exit(1)
             try:
                 gpio = int(gpio)
                 assert gpio < 26
             except (ValueError, AssertionError):
-                log(f"Error: plant {i} ('{profile_name}'): invalid GPIO '{gpio}' (must be integer < 26)")
+                log(f"Error: plant {i} ('{profile_name}'): invalid pump_gpio '{gpio}' (must be integer < 26)")
                 sys.exit(1)
 
             # Load soil profile
@@ -363,7 +368,7 @@ class PlantPi:
                 fill_time=fill_time, fill_pad=fill_pad,
                 max_continuous=max_continuous, max_daily=max_daily
             ))
-            log(f"Plant {i}: '{plant_profile.name}', top_ch={top_ch}, bottom_ch={bottom_ch}, gpio={gpio}")
+            log(f"Plant {i}: '{plant_profile.name}', top_ch={top_ch}, bottom_ch={bottom_ch}, pump_gpio={gpio}")
 
         # Email setup
         self.emailer = Emailer()
@@ -414,6 +419,16 @@ class PlantPi:
                     t = float(ls[0])
                     self.simu_rows.append((t, {i: float(ls[i + 1]) for i in range(min(8, len(ls) - 1))}))
             self.simu_rows.sort(key=lambda r: r[0])
+
+        cistern_gpio = config.get('cistern_gpio')
+        self.cistern_sensor = None
+        self.cistern_low = None   # None=unknown, True=currently low, False=ok
+        if cistern_gpio is not None:
+            if args.simulator:
+                self.cistern_sensor = FakeDigitalInput()
+            else:
+                self.cistern_sensor = DigitalInputDevice(cistern_gpio, pull_up=None, active_state=True)
+            log(f"Cistern sensor on GPIO {cistern_gpio}")
 
         self.done = False
         self.sample = False
@@ -476,6 +491,8 @@ class PlantPi:
                  'time': get_time(self.time, False), 'pump': pc.pump.value == 1,
                  'moisture_top': pc.moisture_top, 'moisture_bottom': pc.moisture_bottom}
             result.append(d)
+        if self.cistern_sensor is not None:
+            result.append({'cistern': bool(self.cistern_sensor.value)})
         self.sample = True
         with self.cond:
             self.cond.notify_all()
@@ -606,6 +623,8 @@ class PlantPi:
                     if pc.bottom_channel is not None:
                         lines.append(f'  Bottom: {pc.moisture_bottom}')
                     log('\n'.join(lines))
+                if self.cistern_sensor is not None:
+                    log(f'Cistern: {"LOW" if not self.cistern_sensor.value else "OK"}')
             self.sample = True
             with self.cond:
                 self.cond.notify_all()
@@ -673,6 +692,8 @@ class PlantPi:
             if pc.bottom_channel is not None:
                 header_parts += [f'PLANT_{i}_BOTTOM', f'PLANT_{i}_MAPPED_BOTTOM']
             header_parts.append(f'PLANT_{i}_PUMP')
+        if self.cistern_sensor is not None:
+            header_parts.append('CISTERN')
         header = ','.join(header_parts) + '\n'
 
         try:
@@ -694,6 +715,19 @@ class PlantPi:
 
                 self._save_state()
 
+                # Cistern level check
+                if self.cistern_sensor is not None:
+                    water_present = bool(self.cistern_sensor.value)
+                    is_low = not water_present
+                    if self.cistern_low is None or is_low != self.cistern_low:
+                        self.cistern_low = is_low
+                        if is_low:
+                            msg = 'Warning: Cistern water level is LOW'
+                            log(msg + '\n')
+                            self.alert('[PlantPi] Cistern Low Water Alert', msg)
+                        else:
+                            log('Cistern water level restored\n')
+
                 # Pump activation email alerts
                 for pc in self.plant_controllers:
                     if pc.pump.value == 1 and pc.last_pump_val == 0 and not pc.pause_fill:
@@ -711,12 +745,15 @@ class PlantPi:
                 if args.verbose:
                     lines = []
                     for i, pc in enumerate(self.plant_controllers):
-                        lines.append(f'  Plant {i} ({pc.plant_profile.name}): Pump={pc.pump.value == 1}')
+                        lines.append(f'Plant {i} ({pc.plant_profile.name}):')
+                        lines.append(f'  Pump:   {pc.pump.value == 1}')
                         if pc.top_channel is not None:
-                            lines.append(f'    TOP: {pc.moisture_top_raw} -> {pc.moisture_top}')
+                            lines.append(f'  Top:    {pc.moisture_top_raw:.4f} -> {pc.moisture_top:.2f}')
                         if pc.bottom_channel is not None:
-                            lines.append(f'    BOTTOM: {pc.moisture_bottom_raw} -> {pc.moisture_bottom}')
-                    log('\n'.join(lines))
+                            lines.append(f'  Bottom: {pc.moisture_bottom_raw:.4f} -> {pc.moisture_bottom:.2f}')
+                    if self.cistern_sensor is not None:
+                        lines.append(f'Cistern: {"LOW" if not self.cistern_sensor.value else "OK"}')
+                    log('\n'.join(lines)+'\n')
 
                 # CSV logging
                 if args.file:
@@ -738,6 +775,8 @@ class PlantPi:
                             if pc.bottom_channel is not None:
                                 row_parts += [str(pc.moisture_bottom_raw), str(pc.moisture_bottom)]
                             row_parts.append(str(pc.pump.value))
+                        if self.cistern_sensor is not None:
+                            row_parts.append(str(self.cistern_sensor.value))
                         f.write(','.join(row_parts) + '\n')
 
                 # Auto-quit when simulator data is exhausted and no plant needs watering

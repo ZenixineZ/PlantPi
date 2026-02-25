@@ -3,12 +3,13 @@
   "test": true,
   "verbose": true,
   "quiet": true,
+  "cistern_gpio": 18,
   "simulator": "simu/topoff_sample.csv",
   "plants": [
     {
       "profile": "dracaena",
       "top_channel": 0,
-      "gpio": 14,
+      "pump_gpio": 14,
       "soil_profile": "default",
       "fill_time": 1,
       "fill_pad": 0.9,

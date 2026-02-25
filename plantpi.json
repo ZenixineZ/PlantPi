@@ -11,7 +11,7 @@
       "profile": "dracaena",
       "top_channel": 0,
       "bottom_channel": 4,
-      "gpio": 14,
+      "pump_gpio": 14,
       "soil_profile": "default",
       "fill_time": 5,
       "fill_pad": 0.9,
