@@ -17,15 +17,10 @@ TODO:
            	-use 3d printed plugs for cable endings, you'll need 8 sockets with moulding to clip sensor wires in, and a hole to pass the pump feed through. Maybe just one pump and a set of computer controlled valves?
            	-water level indicator in cistern
         -[SOFTWARE]
-            -restart handling, service?
+            -test trim handling
+            -alerts should be buffered until the run loop ending and then sent as one message
            	-control/config ui
-            -Real time graph: find a better graphing library for growing graphs, ideally one that can be zoomed in easily on the new data
-           	-stores all data, interpolates old data away to achieve configurable size limit
-           	-add notifications
-               	-digest of configurable time period of data
-               	-sustained critical light or water reading
-               	-refill cistern
-            -water level handling
+                -Real time graph: find a better graphing library for growing graphs, ideally one that can be zoomed in easily on the new data
            	-lighting system, different colors for different fill types, selectable patterns, music mode...?
            	-monitor pi that listens for heartbeat from plantpi and reports outtages
            	-light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile

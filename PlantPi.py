@@ -19,6 +19,7 @@ DEFAULT_FILL_TIME      = float(os.environ.get('PLANTPI_FILL_TIME',      5))
 DEFAULT_FILL_PAD       = float(os.environ.get('PLANTPI_FILL_PAD',       0.9))
 DEFAULT_MAX_CONTINUOUS = float(os.environ.get('PLANTPI_MAX_CONTINUOUS', 30))
 DEFAULT_MAX_DAILY      = float(os.environ.get('PLANTPI_MAX_DAILY',      300))
+DEFAULT_DRY_ALERT      = float(os.environ.get('PLANTPI_DRY_ALERT',      7200))
 DEFAULT_SOIL_PROFILE   =       os.environ.get('PLANTPI_SOIL_PROFILE',   'default')
 DEFAULT_DATA_LIMIT     =   int(os.environ.get('PLANTPI_DATA_LIMIT',    100000000))
 DEFAULT_LONG_SAMPLE    = float(os.environ.get('PLANTPI_LONG_SAMPLE',    1800))
@@ -103,6 +104,7 @@ def log(s):
         lf.write(f'[{get_time()}] {s}\n')
 
 
+
 #   Moisture Mapping, tested with resistive gardening probe and capacitive sensors attached to rpi
 #   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
 #   >=10:   0.283 -> wet
@@ -156,7 +158,8 @@ class FakeADC:
 class PlantController:
     def __init__(self, plant_profile, soil_profile, adcs, pump, top_channel, bottom_channel=None,
                  fill_time=DEFAULT_FILL_TIME, fill_pad=DEFAULT_FILL_PAD,
-                 max_continuous=DEFAULT_MAX_CONTINUOUS, max_daily=DEFAULT_MAX_DAILY):
+                 max_continuous=DEFAULT_MAX_CONTINUOUS, max_daily=DEFAULT_MAX_DAILY,
+                 dry_alert=DEFAULT_DRY_ALERT):
         self.plant_profile = plant_profile
         self.soil_profile = soil_profile
         self.adcs = adcs
@@ -167,6 +170,7 @@ class PlantController:
         self.fill_pad = fill_pad
         self.max_continuous = max_continuous
         self.max_daily = max_daily
+        self.dry_alert = dry_alert
         # sensor readings (raw ADC-normalized and mapped to 0-10 scale)
         self.moisture_top_raw = 0.0
         self.moisture_top = 0.0
@@ -182,6 +186,9 @@ class PlantController:
         self.total_water_time = 0.0
         self.last_pump_val = 0
         self.rest_water = False
+        # sustained dry alert state
+        self.dry_since      = None   # time() when primary moisture first fell below moisture_min
+        self.dry_alert_sent = False  # True after alert fired; reset only when moisture recovers
 
     def water(self, t, clear_fill=False):
         if clear_fill:
@@ -200,6 +207,26 @@ class PlantController:
             self.last_accum_time = None
             self.pump.off()
             log(f'[{self.plant_profile.name}] Pump Off\n')
+
+    def check_dry_alert(self, t, alerter):
+        if self.dry_alert <= 0:
+            return
+        primary = self.moisture_bottom if self.bottom_channel is not None else self.moisture_top
+        if primary < self.plant_profile.moisture_min:
+            if self.dry_since is None:
+                self.dry_since = t
+            elif not self.dry_alert_sent and t - self.dry_since >= self.dry_alert:
+                duration_h = (t - self.dry_since) / 3600
+                msg = (f'[{self.plant_profile.name}] moisture has been critically low '
+                       f'for {duration_h:.1f}h (reading: {primary:.2f}, '
+                       f'min: {self.plant_profile.moisture_min}). '
+                       f'Please inspect the plant and watering system.')
+                log(f'[Warning: {msg}]\n')
+                alerter(f'[{self.plant_profile.name}] Sustained Low Moisture', msg)
+                self.dry_alert_sent = True
+        else:
+            self.dry_since = None
+            self.dry_alert_sent = False
 
     def get_data(self):
         if self.top_channel is not None:
@@ -323,6 +350,7 @@ class PlantPi:
             fill_pad       = plant_cfg.get('fill_pad',       DEFAULT_FILL_PAD)
             max_continuous = plant_cfg.get('max_continuous', DEFAULT_MAX_CONTINUOUS)
             max_daily      = plant_cfg.get('max_daily',      DEFAULT_MAX_DAILY)
+            dry_alert      = plant_cfg.get('dry_alert',      DEFAULT_DRY_ALERT)
 
             if not profile_name:
                 log(f"Error: plant {i}: 'profile' is required")
@@ -370,7 +398,8 @@ class PlantPi:
             self.plant_controllers.append(PlantController(
                 plant_profile, soil_profile, self.adcs, pump, top_ch, bottom_ch,
                 fill_time=fill_time, fill_pad=fill_pad,
-                max_continuous=max_continuous, max_daily=max_daily
+                max_continuous=max_continuous, max_daily=max_daily,
+                dry_alert=dry_alert
             ))
             log(f"Plant {i}: '{plant_profile.name}', top_ch={top_ch}, bottom_ch={bottom_ch}, pump_gpio={gpio}")
 
@@ -761,12 +790,13 @@ class PlantPi:
                 for pc in self.plant_controllers:
                     pc.get_data()
 
-                # Watering logic per plant
+                # Watering logic + sustained dry alert per plant
                 for i, pc in enumerate(self.plant_controllers):
                     if self._cli_waters(i) or self._kb_waters(i) or pc.rest_water:
                         pc.water(self.time, clear_fill=True)
                     else:
                         pc.water_if_thirsty(self.time, self.alert)
+                    pc.check_dry_alert(self.time, self.alert)
 
                 self._save_state()
 
