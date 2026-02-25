@@ -21,6 +21,8 @@ DEFAULT_MAX_CONTINUOUS = float(os.environ.get('PLANTPI_MAX_CONTINUOUS', 30))
 DEFAULT_MAX_DAILY      = float(os.environ.get('PLANTPI_MAX_DAILY',      300))
 DEFAULT_SOIL_PROFILE   =       os.environ.get('PLANTPI_SOIL_PROFILE',   'default')
 DEFAULT_DATA_LIMIT     =   int(os.environ.get('PLANTPI_DATA_LIMIT',    100000000))
+DEFAULT_LONG_SAMPLE    = float(os.environ.get('PLANTPI_LONG_SAMPLE',    1800))
+DEFAULT_MAX_SIZE       =   int(os.environ.get('PLANTPI_MAX_SIZE',       2_000_000_000))
 STATE_FILE             =       os.path.join(plantpi_path, 'state.json')
 
 parser = argparse.ArgumentParser(description="Run the Plant Pi")
@@ -61,8 +63,10 @@ if args.simulator is None:
     elif sim_cfg:
         args.simulator = sim_cfg
 args.plants = config.get('plants', [])
-args.data_limit = config.get('data_limit', DEFAULT_DATA_LIMIT)
-args.simu_quit = config.get('simu_quit', True)
+args.data_limit     = config.get('data_limit', DEFAULT_DATA_LIMIT)
+args.long_sample    = max(2.0, config.get('long_sample', DEFAULT_LONG_SAMPLE))
+args.max_size       = max(1_000_000, config.get('max_size', DEFAULT_MAX_SIZE))
+args.simu_quit      = config.get('simu_quit', True)
 
 if not args.simulator:
     import Adafruit_ADS1x15 as ADS
@@ -444,7 +448,6 @@ class PlantPi:
                 self.cistern_sensor = DigitalInputDevice(cistern_gpio, pull_up=None, active_state=True)
             log(f"Cistern sensor on GPIO {cistern_gpio}")
 
-        self.csv_t0 = None   # wall-clock time of the first CSV row; elapsed = self.time - csv_t0
         self.done = False
         self.sample = False
         self.kb_water = False          # True while keyboard 'w' is held
@@ -627,6 +630,40 @@ class PlantPi:
                 json.dump(state, f)
         except Exception as e:
             log(f"Warning: failed to save state to {STATE_FILE}: {e}")
+    def _trim_csv(self):
+        if not args.file or not os.path.exists(args.file):
+            return
+        size = os.path.getsize(args.file)
+        if size <= args.max_size:
+            return
+
+        excess = size - args.max_size
+        with open(args.file, 'r') as f:
+            header = f.readline()
+            f.seek(excess, 1)   # jump past ~excess bytes (SEEK_CUR, so relative to end of header)
+            f.readline()        # discard the partial line we landed in the middle of
+            kept_start = f.tell()
+
+        old_kb = size // 1024
+        tmp_path = args.file + '.tmp'
+        try:
+            # Write header + everything from kept_start onward into a temp file,
+            # then atomically replace the original.
+            with open(tmp_path, 'wb') as tmp:
+                tmp.write(header.encode())
+                with open(args.file, 'rb') as src:
+                    src.seek(kept_start)
+                    while True:
+                        chunk = src.read(65536)
+                        if not chunk:
+                            break
+                        tmp.write(chunk)
+            os.replace(tmp_path, args.file)
+        except Exception as e:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return
+        new_kb = os.path.getsize(args.file) // 1024
 
     def on_press(self, key):
         if key == 's':
@@ -787,16 +824,7 @@ class PlantPi:
                             f.truncate(0)
                             f.write(header)
                             lines = [header]
-                        if self.csv_t0 is None:
-                            if len(lines) > 1:
-                                try:
-                                    last_t = float(lines[-1].split(',')[0])
-                                    self.csv_t0 = self.time - last_t
-                                except (ValueError, IndexError):
-                                    pass
-                            if self.csv_t0 is None:
-                                self.csv_t0 = self.time
-                        row_parts = [f'{self.time - self.csv_t0:.3f}']
+                        row_parts = [str(self.time)]
                         for pc in self.plant_controllers:
                             row_parts.append(pc.plant_profile.name)
                             if pc.top_channel is not None:
@@ -807,6 +835,7 @@ class PlantPi:
                         if self.cistern_sensor is not None:
                             row_parts.append(str(self.cistern_sensor.value))
                         f.write(','.join(row_parts) + '\n')
+                    self._trim_csv()
 
                 # Auto-quit when simulator data is exhausted and no plant needs watering
                 if args.simu_quit and args.simulator and args.simulator != "zeros" and \
@@ -825,7 +854,7 @@ class PlantPi:
                         self.cond.wait_for(
                             lambda: self.done or self.kb_water or self.sample or
                                     any(pc.rest_water for pc in self.plant_controllers),
-                            timeout=1800)
+                            timeout=args.long_sample)
                         self.sample = False
 
         except KeyboardInterrupt:

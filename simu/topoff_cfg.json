@@ -3,6 +3,8 @@
   "test": true,
   "verbose": true,
   "quiet": true,
+  "long_sample": 5,
+  "max_size": 5000,
   "cistern_gpio": 18,
   "simulator": "simu/topoff_sample.csv",
   "plants": [
