@@ -411,13 +411,27 @@ class PlantPi:
         self.simu_start = None  # wall-clock time of first simulator call
         if args.simulator and args.simulator != "zeros":
             with open(args.simulator, 'r') as f:
+                simu_header = None
                 for l in f:
                     l = l.strip()
-                    if not l or l.startswith('#') or l.startswith('TIME'):
+                    if not l or l.startswith('#'):
                         continue
                     ls = l.split(',')
+                    if simu_header is None:
+                        simu_header = ls
+                        continue
                     t = float(ls[0])
-                    self.simu_rows.append((t, {i: float(ls[i + 1]) for i in range(min(8, len(ls) - 1))}))
+                    row = {}
+                    for i, col in enumerate(simu_header[1:], 1):
+                        if i >= len(ls):
+                            break
+                        if col.startswith('CH') and col[2:].isdigit():
+                            ch = int(col[2:])
+                            if ch < 8:
+                                row[ch] = float(ls[i])
+                        elif col == 'CISTERN':
+                            row['cistern'] = float(ls[i])
+                    self.simu_rows.append((t, row))
             self.simu_rows.sort(key=lambda r: r[0])
 
         cistern_gpio = config.get('cistern_gpio')
@@ -430,6 +444,7 @@ class PlantPi:
                 self.cistern_sensor = DigitalInputDevice(cistern_gpio, pull_up=None, active_state=True)
             log(f"Cistern sensor on GPIO {cistern_gpio}")
 
+        self.csv_t0 = None   # wall-clock time of the first CSV row; elapsed = self.time - csv_t0
         self.done = False
         self.sample = False
         self.kb_water = False          # True while keyboard 'w' is held
@@ -455,8 +470,11 @@ class PlantPi:
             self.simu_start = self.time
         elapsed = self.time - self.simu_start
         while self.simu_ptr < len(self.simu_rows) and self.simu_rows[self.simu_ptr][0] <= elapsed:
-            for ch, val in self.simu_rows[self.simu_ptr][1].items():
-                self.adcs[ch // 4].values[ch % 4] = val
+            for key, val in self.simu_rows[self.simu_ptr][1].items():
+                if isinstance(key, int):
+                    self.adcs[key // 4].values[key % 4] = val
+                elif key == 'cistern' and self.cistern_sensor is not None:
+                    self.cistern_sensor.value = int(val)
             self.simu_ptr += 1
 
     def get_data_rest(self):
@@ -576,7 +594,7 @@ class PlantPi:
             try:
                 self.emailer.send_email(self.email_user, self.email_pwd, self.email_to,
                                         self.email_from, subject, message)
-                log(f'Email sent from {self.email_from} to {self.email_to}\n')
+                log(f'[Email sent from {self.email_from} to {self.email_to}]\n')
             except Exception as e:
                 log(f'Warning: Failed to send notification email: {e}\n')
 
@@ -719,14 +737,15 @@ class PlantPi:
                 if self.cistern_sensor is not None:
                     water_present = bool(self.cistern_sensor.value)
                     is_low = not water_present
-                    if self.cistern_low is None or is_low != self.cistern_low:
+                    first = self.cistern_low is None
+                    if first or is_low != self.cistern_low:
                         self.cistern_low = is_low
                         if is_low:
-                            msg = 'Warning: Cistern water level is LOW'
+                            msg = '[Warning: Cistern water level is LOW]'
                             log(msg + '\n')
                             self.alert('[PlantPi] Cistern Low Water Alert', msg)
-                        else:
-                            log('Cistern water level restored\n')
+                        elif not first:
+                            log('[Cistern water level restored]\n')
 
                 # Pump activation email alerts
                 for pc in self.plant_controllers:
@@ -767,7 +786,17 @@ class PlantPi:
                         elif lines[0] != header:
                             f.truncate(0)
                             f.write(header)
-                        row_parts = [str(self.time)]
+                            lines = [header]
+                        if self.csv_t0 is None:
+                            if len(lines) > 1:
+                                try:
+                                    last_t = float(lines[-1].split(',')[0])
+                                    self.csv_t0 = self.time - last_t
+                                except (ValueError, IndexError):
+                                    pass
+                            if self.csv_t0 is None:
+                                self.csv_t0 = self.time
+                        row_parts = [f'{self.time - self.csv_t0:.3f}']
                         for pc in self.plant_controllers:
                             row_parts.append(pc.plant_profile.name)
                             if pc.top_channel is not None:
