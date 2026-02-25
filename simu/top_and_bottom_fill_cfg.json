@@ -1,12 +1,12 @@
 {
-  "file": "simu/topand_bottom_data.csv",
+  "file": "simu/top_and_bottom_data.csv",
   "test": true,
   "verbose": true,
   "quiet": true,
   "long_sample": 5,
   "max_size": 5000,
   "cistern_gpio": 18,
-  "simulator": "simu/top_and_bottom_sample.csv",
+  "simulator": "simu/top_and_bottom_fill_sample.csv",
   "plants": [
     {
       "profile": "dracaena",

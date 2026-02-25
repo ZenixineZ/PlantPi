@@ -66,7 +66,7 @@ if args.simulator is None:
 args.plants = config.get('plants', [])
 args.data_limit     = config.get('data_limit', DEFAULT_DATA_LIMIT)
 args.long_sample    = max(2.0, config.get('long_sample', DEFAULT_LONG_SAMPLE))
-args.max_size       = max(1_000_000, config.get('max_size', DEFAULT_MAX_SIZE))
+args.max_size       = config.get('max_size', DEFAULT_MAX_SIZE)
 args.simu_quit      = config.get('simu_quit', True)
 
 if not args.simulator:
@@ -483,6 +483,7 @@ class PlantPi:
         self.kb_water_indices = set()  # number keys held with 'w'; empty = all plants
         self.cond = threading.Condition()
         self.qt = None
+        self.alert_buffer = []         # (subject, message) pairs queued during each loop iteration
         self._load_state()
 
     def _cli_waters(self, plant_idx):
@@ -508,6 +509,9 @@ class PlantPi:
                 elif key == 'cistern' and self.cistern_sensor is not None:
                     self.cistern_sensor.value = int(val)
             self.simu_ptr += 1
+        if not args.simu_quit and self.simu_rows and self.simu_ptr >= len(self.simu_rows):
+            self.simu_ptr = 0
+            self.simu_start = self.time
 
     def get_data_rest(self):
         d = request.data
@@ -621,7 +625,7 @@ class PlantPi:
             except:
                 pass
 
-    def alert(self, subject, message):
+    def _send_alert(self, subject, message):
         if self.email_user and self.email_pwd and self.email_to and self.email_from:
             try:
                 self.emailer.send_email(self.email_user, self.email_pwd, self.email_to,
@@ -629,6 +633,22 @@ class PlantPi:
                 log(f'[Email sent from {self.email_from} to {self.email_to}]\n')
             except Exception as e:
                 log(f'Warning: Failed to send notification email: {e}\n')
+
+    def alert(self, subject, message):
+        """Buffer an alert to be sent at end of the current loop iteration."""
+        self.alert_buffer.append((subject, message))
+
+    def _flush_alerts(self):
+        """Send all buffered alerts as a single email, then clear the buffer."""
+        if not self.alert_buffer:
+            return
+        if len(self.alert_buffer) == 1:
+            subject, message = self.alert_buffer[0]
+        else:
+            subject = '[PlantPi] Multiple Alerts'
+            message = '\n\n'.join(f'=== {s} ===\n{m}' for s, m in self.alert_buffer)
+        self.alert_buffer.clear()
+        self._send_alert(subject, message)
 
     def _load_state(self):
         today = datetime.now().strftime('%Y-%m-%d')
@@ -667,19 +687,18 @@ class PlantPi:
             return
 
         excess = size - args.max_size
-        with open(args.file, 'r') as f:
+        with open(args.file, 'rb') as f:
             header = f.readline()
             f.seek(excess, 1)   # jump past ~excess bytes (SEEK_CUR, so relative to end of header)
             f.readline()        # discard the partial line we landed in the middle of
             kept_start = f.tell()
 
-        old_kb = size // 1024
         tmp_path = args.file + '.tmp'
         try:
             # Write header + everything from kept_start onward into a temp file,
             # then atomically replace the original.
             with open(tmp_path, 'wb') as tmp:
-                tmp.write(header.encode())
+                tmp.write(header)
                 with open(args.file, 'rb') as src:
                     src.seek(kept_start)
                     while True:
@@ -692,7 +711,7 @@ class PlantPi:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             return
-        new_kb = os.path.getsize(args.file) // 1024
+        log(f'CSV trimmed: {size // 1024}KB -> {os.path.getsize(args.file) // 1024}KB\n')
 
     def on_press(self, key):
         if key == 's':
@@ -874,6 +893,8 @@ class PlantPi:
                     self.done = True
                     continue
 
+                self._flush_alerts()
+
                 # Sleep: fast loop when any plant is actively watering or in test mode
                 any_active = any(pc.need_top_off or pc.need_fill for pc in self.plant_controllers)
                 any_manual = self.kb_water or any(pc.rest_water for pc in self.plant_controllers)
@@ -889,6 +910,8 @@ class PlantPi:
 
         except KeyboardInterrupt:
             pass
+        finally:
+            self._flush_alerts()
         log("Quitting...")
         stop_listening()
         if self.qt:
