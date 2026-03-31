@@ -7,7 +7,7 @@
   "simulator": "tests/aggregate_alert_sample.csv",
   "plants": [
     {
-      "profile": "dracaena",
+      "profile": "dragon_plant",
       "top_channel": 0,
       "pump_gpio": 14,
       "soil_profile": "default",
@@ -17,7 +17,7 @@
       "dry_alert": 0
     },
     {
-      "profile": "dracaena",
+      "profile": "dragon_plant",
       "top_channel": 4,
       "pump_gpio": 15,
       "soil_profile": "default",

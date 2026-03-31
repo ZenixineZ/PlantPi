@@ -56,14 +56,17 @@ Pi dependencies installed by `pi_setup.sh`: `gpiozero`, `matplotlib`, `Adafruit_
 
 ### Files
 - **`PlantPi.py`** — Main entry point and all core logic
-- **`RestServer.py`** — Thin wrapper around Flask/Werkzeug that runs as a background thread on port 8080
-- **`Emailer.py`** — Simple Gmail SMTP wrapper
-- **`moisture_plots.py`** — Standalone matplotlib script for offline analysis of recorded CSV data
+- **`utils/RestServer.py`** — Thin wrapper around Flask/Werkzeug that runs as a background thread on port 8080
+- **`utils/Emailer.py`** — Simple Gmail SMTP wrapper
+- **`utils/profiles.py`** — `PlantProfile` and `SoilProfile` data classes
+- **`ui/`** — Qt desktop UI (optional; launched with `--ui`)
+- **`tests/moisture_plots.py`** — Standalone matplotlib script for offline analysis of recorded CSV data
 - **`pi_setup.sh`** — Bootstraps a fresh Pi (remote or local)
 - **`profiles/*.json`** — Plant profiles with moisture thresholds
 - **`profiles/soil/*.json`** — Soil profiles with ADC sensor calibration values
-- **`email_auth.json`** — Email credentials (not committed; see `email_auth_sample.json`)
-- **`sample_simu.csv`** — Sample simulator input file showing the format
+- **`resources/email_auth.json`** — Email credentials (not committed; see `resources/email_auth_sample.json`)
+- **`resources/state.json`** — Persisted runtime state (pump daily totals, etc.)
+- **`simu/sample_simu.csv`** — Sample simulator input file showing the format
 
 ### Key Classes (`PlantPi.py`)
 - **`PlantPi`** — Main controller. Owns the ADC list, plant controllers, CSV logging, email alerting, REST endpoints, and keyboard listener thread.
@@ -113,7 +116,7 @@ TIME,CH0,CH1,CH2,CH3,CH4,CH5,CH6,CH7
 `TIME` is seconds from session start (floats allowed). Each row's values take effect when elapsed time reaches that offset and remain active until the next row fires. Multiple rows can fire in one loop iteration if the loop was slow. Channels not used by any `--plant` spec can be left at 0.
 
 ### Configuration Files
-**`email_auth.json`** — copy from `email_auth_sample.json`:
+**`resources/email_auth.json`** — copy from `resources/email_auth_sample.json`:
 ```json
 {"user": "...", "password": "...", "to": "...", "from": "..."}
 ```

@@ -11,8 +11,10 @@ from sshkeyboard import listen_keyboard, stop_listening
 import sys
 plantpi_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, plantpi_path)
+sys.path.insert(0, os.path.join(plantpi_path, 'utils'))
 from Emailer import Emailer
 from RestServer import RestServer
+from profiles import SoilProfile, PlantProfile
 
 DEFAULT_FILE_PATH      =       os.environ.get('PLANTPI_FILE_PATH',      os.path.join(plantpi_path, 'data.csv'))
 DEFAULT_FILL_TIME      = float(os.environ.get('PLANTPI_FILL_TIME',      5))
@@ -24,7 +26,7 @@ DEFAULT_SOIL_PROFILE   =       os.environ.get('PLANTPI_SOIL_PROFILE',   'default
 DEFAULT_DATA_LIMIT     =   int(os.environ.get('PLANTPI_DATA_LIMIT',    100000000))
 DEFAULT_LONG_SAMPLE    = float(os.environ.get('PLANTPI_LONG_SAMPLE',    1800))
 DEFAULT_MAX_SIZE       =   int(os.environ.get('PLANTPI_MAX_SIZE',       2_000_000_000))
-STATE_FILE             =       os.path.join(plantpi_path, 'state.json')
+STATE_FILE             =       os.path.join(plantpi_path, 'resources', 'state.json')
 
 parser = argparse.ArgumentParser(description="Run the Plant Pi")
 
@@ -43,6 +45,8 @@ parser.add_argument("-q", "--quiet", action='store_true',
 parser.add_argument("--simulator", nargs='?', const="zeros", default=None,
                     help='Simulate sensor data from a CSV file (SEQ,CH0..CH7 format), '
                          'or all zeros if no file given')
+parser.add_argument("--ui", action='store_true',
+                    help='Launch the Qt desktop UI (runs the control loop in a background thread)')
 
 args = parser.parse_args()
 
@@ -68,6 +72,7 @@ args.data_limit     = config.get('data_limit', DEFAULT_DATA_LIMIT)
 args.long_sample    = max(2.0, config.get('long_sample', DEFAULT_LONG_SAMPLE))
 args.max_size       = config.get('max_size', DEFAULT_MAX_SIZE)
 args.simu_quit      = config.get('simu_quit', True)
+if not args.ui: args.ui = config.get('ui', False)
 
 if not args.simulator:
     import Adafruit_ADS1x15 as ADS
@@ -108,27 +113,6 @@ def log(s):
 #   Moisture Mapping, tested with resistive gardening probe and capacitive sensors attached to rpi
 #   1.5:      0.428 -> dry (0.515 is sensor in open air, but zero ends up falling at about 0.444)
 #   >=10:   0.283 -> wet
-class SoilProfile:
-    def __init__(self, dry_sensor=0.428, wet_sensor=0.283, dry_std=1.5, wet_std=10):
-        self.dry_sensor = dry_sensor
-        self.wet_sensor = wet_sensor
-        self.dry_std = dry_std
-        self.wet_std = wet_std
-        # y = mx + b, y is std moisture, x is sensor moisture
-        self._m = (wet_std - dry_std) / (wet_sensor - dry_sensor)
-        self._b = dry_std - self._m * dry_sensor
-
-    def map_moisture(self, moisture):
-        return max(0, min(10, self._m * moisture + self._b))
-
-
-class PlantProfile:
-    def __init__(self, name, moisture_min, moisture_max):
-        assert moisture_min >= 0 and moisture_max >= 0 and moisture_min <= moisture_max
-        self.name = name
-        self.moisture_min = moisture_min
-        self.moisture_max = moisture_max
-
 
 class FakePump:
     def __init__(self):
@@ -314,7 +298,7 @@ class PlantController:
 class PlantPi:
     def __init__(self, plant_args):
         if not plant_args:
-            log('Error: No plants configured. Add a "plants" array to plantpi.json.')
+            log('Error: No plants configured. Add a "plants" array to your config JSON (use -c).')
             sys.exit(1)
 
         # Load plant profiles from disk
@@ -410,7 +394,7 @@ class PlantPi:
         self.email_to = None
         self.email_from = None
         try:
-            with open(os.path.join(plantpi_path, 'email_auth.json'), 'r') as f:
+            with open(os.path.join(plantpi_path, 'resources', 'email_auth.json'), 'r') as f:
                 auth = json.load(f)
                 if 'user' in auth:
                     self.email_user = auth['user']
@@ -487,6 +471,7 @@ class PlantPi:
         self.cond = threading.Condition()
         self.qt = None
         self.alert_buffer = []         # (subject, message) pairs queued during each loop iteration
+        self._ui_bridge = None         # set by ui.launch() when --ui is used
         self._load_state()
 
     def _cli_waters(self, plant_idx):
@@ -718,7 +703,6 @@ class PlantPi:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             return
-        log(f'CSV trimmed: {size // 1024}KB -> {os.path.getsize(args.file) // 1024}KB\n')
 
     def on_press(self, key):
         if key == 's':
@@ -812,19 +796,38 @@ class PlantPi:
                 if args.simulator:
                     self.advance_simulator()
 
-                # Read sensors into each PlantController
-                for pc in self.plant_controllers:
-                    pc.get_data()
-
                 # Watering logic + sustained dry alert per plant
                 for i, pc in enumerate(self.plant_controllers):
+                    pc.get_data()
                     if self._cli_waters(i) or self._kb_waters(i) or pc.rest_water:
                         pc.water(self.time, clear_fill=True)
                     else:
                         pc.water_if_thirsty(self.time, self.alert)
                     pc.check_dry_alert(self.time, self.alert)
+                    
+                    if pc.pump.value == 1 and pc.last_pump_val == 0 and not pc.pause_fill:
+                        parts = [f'Time: {get_time(self.time, False)}',
+                                 f'Plant: {pc.plant_profile.name}',
+                                 f'Pump: On']
+                        if pc.top_channel is not None:
+                            parts.append(f'Top: {pc.moisture_top}')
+                        if pc.bottom_channel is not None:
+                            parts.append(f'Bottom: {pc.moisture_bottom}')
+                        self.alert(f'[{pc.plant_profile.name}] Pump Activated',
+                                   '\n'.join(parts) + '\n')
+                    pc.last_pump_val = pc.pump.value
 
                 self._save_state()
+
+                # Push live sample to UI if attached
+                if self._ui_bridge is not None:
+                    self._ui_bridge.push([{
+                        'plant':            i,
+                        'name':             pc.plant_profile.name,
+                        'pump':             pc.pump.value == 1,
+                        'moisture_top':     pc.moisture_top,
+                        'moisture_bottom':  pc.moisture_bottom,
+                    } for i, pc in enumerate(self.plant_controllers)])
 
                 # Cistern level check
                 if self.cistern_sensor is not None:
@@ -840,20 +843,7 @@ class PlantPi:
                         elif not first:
                             log('[Cistern water level restored]\n')
 
-                # Pump activation email alerts
-                for pc in self.plant_controllers:
-                    if pc.pump.value == 1 and pc.last_pump_val == 0 and not pc.pause_fill:
-                        parts = [f'Time: {get_time(self.time, False)}',
-                                 f'Plant: {pc.plant_profile.name}',
-                                 f'Pump: On']
-                        if pc.top_channel is not None:
-                            parts.append(f'Top: {pc.moisture_top}')
-                        if pc.bottom_channel is not None:
-                            parts.append(f'Bottom: {pc.moisture_bottom}')
-                        self.alert(f'[{pc.plant_profile.name}] Pump Activated',
-                                   '\n'.join(parts) + '\n')
-                    pc.last_pump_val = pc.pump.value
-
+                # Verbose print
                 if args.verbose:
                     lines = []
                     for i, pc in enumerate(self.plant_controllers):
@@ -928,6 +918,16 @@ if __name__ == "__main__":
     try:
         log("Starting PlantPi...\n")
         pp = PlantPi(args.plants)
-        pp.run()
+        if args.ui:
+            run_thread = threading.Thread(target=pp.run, daemon=True)
+            run_thread.start()
+            from ui import launch as _launch_ui
+            _launch_ui(args.config, csv_path=args.file, plantpi=pp)
+            pp.done = True
+            with pp.cond:
+                pp.cond.notify_all()
+            run_thread.join(timeout=5)
+        else:
+            pp.run()
     except KeyboardInterrupt:
         log("\nQuitting...")

@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""PlantPi Desktop UI — Dashboard / Graph / Profiles / Settings"""
+
+import os
+import signal
+import sys
+
+# ---------------------------------------------------------------------------
+# PyQt5/6 compatibility shim
+# ---------------------------------------------------------------------------
+try:
+    from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QTabBar,
+                                  QLabel, QProxyStyle, QStyle)
+    from PyQt5.QtCore import QObject, QSize, pyqtSignal, QTimer
+    from PyQt5.QtGui import QIcon
+    _QT = 5
+except ImportError:
+    from PyQt6.QtWidgets import (QApplication, QMainWindow, QTabWidget, QTabBar,
+                                  QLabel, QProxyStyle, QStyle)
+    from PyQt6.QtCore import QObject, QSize, pyqtSignal, QTimer
+    from PyQt6.QtGui import QIcon
+    _QT = 6
+
+
+class _TooltipDelayStyle(QProxyStyle):
+    """Overrides the tooltip wake-up delay system hint."""
+    def styleHint(self, hint, option=None, widget=None, returnData=None):
+        SH = QStyle.StyleHint.SH_ToolTip_WakeUpDelay if _QT == 6 else QStyle.SH_ToolTip_WakeUpDelay
+        if hint == SH:
+            return 3000
+        return super().styleHint(hint, option, widget, returnData)
+
+from _utils import (
+    _HERE, DEFAULT_CFG_PATH, LATEST_CFG_PATH, PROFILES_DIR,
+    _load_json, _save_json_atomic, _profile_names,
+)
+from .graph_tab import GraphTab
+from .dashboard_tab import DashboardTab, PlantIcon
+from .profiles_tab import ProfilesTab
+from .settings_tab import SettingsTab
+
+
+# ---------------------------------------------------------------------------
+# _Bridge — thread-safe signal relay between PlantPi and the UI
+# ---------------------------------------------------------------------------
+class _Bridge(QObject):
+    updated = pyqtSignal(object)  # emits the samples list; safe across threads
+
+    def __init__(self):
+        super().__init__()
+
+    def push(self, samples):
+        """Safe to call from any thread — Qt queues the signal across threads."""
+        self.updated.emit(samples)
+
+    def shutdown(self):
+        pass
+
+
+# ---------------------------------------------------------------------------
+# MainWindow
+# ---------------------------------------------------------------------------
+class MainWindow(QMainWindow):
+    def __init__(self, cfg_path, csv_path=None, plantpi=None):
+        super().__init__()
+        self._cfg = _load_json(cfg_path, {})
+        self._plantpi = plantpi
+
+        # csv_path arg wins; else config 'file'; else default
+        _csv = csv_path or self._cfg.get('file', os.path.join(_HERE, 'data.csv'))
+        self._cfg['file'] = _csv
+
+        n = max(1, len(self._cfg.get('plants', [])))
+        # When running with a live PlantPi, cap plant count to the number of
+        # controllers actually started (can't add more without restarting).
+        max_plants = len(plantpi.plant_controllers) if plantpi is not None else 8
+        n = min(n, max_plants)
+
+        settings = {
+            'plant_count': n,
+            'csv_path':    _csv,
+            'plants':      self._cfg.get('plants', []),
+        }
+
+        profile_names = _profile_names(PROFILES_DIR)
+
+        self.setWindowTitle('PlantPi')
+        self.resize(900, 600)
+
+        # Tabs
+        self._tabs = QTabWidget()
+        self._tabs.setAccessibleName('main_tabs')
+        self._tabs.tabBar().setAccessibleName('main_tab_bar')
+        self._dash = DashboardTab(n, profile_names, self._cfg)
+        self._graph = GraphTab(n, self._cfg, _csv)
+        self._profiles = ProfilesTab()
+        self._settings = SettingsTab(settings, max_plants=max_plants)
+
+        self._tabs.addTab(self._dash, 'Dashboard')
+        self._tabs.addTab(self._graph, 'Graph')
+        self._tabs.addTab(self._profiles, 'Profiles')
+        self._tabs.addTab(self._settings, 'Settings')
+
+        self.setCentralWidget(self._tabs)
+
+        # Wire signals
+        self._dash.plant_cfg_applied.connect(self._on_plant_cfg_applied)
+        self._dash.profile_saved.connect(self._profiles.reload)
+        self._dash.status_message.connect(self._on_status_message)
+        self._profiles.profiles_changed.connect(self._on_profiles_changed)
+        self._settings.settings_saved.connect(self._on_settings_saved)
+        self._settings.save_as_requested.connect(self._on_save_as)
+
+        # Pause/resume graph timer based on tab visibility
+        self._tabs.currentChanged.connect(self._on_tab_changed)
+
+        # Live sensor bridge — PlantPi pushes samples directly into this
+        self._bridge = None
+        if plantpi is not None:
+            self._bridge = _Bridge()
+            self._bridge.updated.connect(self._on_sample)
+        else:
+            pass
+
+    # ------------------------------------------------------------------
+    def _on_tab_changed(self, idx):
+        if self._tabs.widget(idx) is self._graph:
+            self._graph.resume()
+        else:
+            self._graph.pause()
+
+    def _on_sample(self, samples):
+        self._dash.update_sample(samples)
+
+    def _on_plant_cfg_applied(self, idx, new_plant_cfg):
+        """Update in-memory config and live state only (no disk write)."""
+        plants = self._cfg.setdefault('plants', [])
+        while len(plants) <= idx:
+            plants.append({})
+        plants[idx].update(new_plant_cfg)
+
+        # Update live PlantPi state directly if available
+        if (self._plantpi is not None and
+                idx < len(self._plantpi.plant_controllers)):
+            pc = self._plantpi.plant_controllers[idx]
+            pc.plant_profile = type(pc.plant_profile)(
+                new_plant_cfg.get('name') or new_plant_cfg.get('profile', pc.plant_profile.name),
+                new_plant_cfg.get('moisture_min', pc.plant_profile.moisture_min),
+                new_plant_cfg.get('moisture_max', pc.plant_profile.moisture_max),
+            )
+
+        self._on_status_message(f'Plant {idx + 1} settings applied')
+
+    def _on_status_message(self, _msg):
+        pass
+
+    def _on_profiles_changed(self, _names):
+        pass  # picked up next time a dialog opens
+
+    def _on_settings_saved(self, s):
+        self._cfg.update({
+            'plant_count': s['plant_count'],
+            'file':        s['csv_path'],
+        })
+        # Merge sensor channel assignments into per-plant configs
+        plants = self._cfg.setdefault('plants', [])
+        for i, sensor in enumerate(s.get('sensors', [])):
+            while len(plants) <= i:
+                plants.append({})
+            plants[i].update(sensor)
+
+        _save_json_atomic(LATEST_CFG_PATH, self._cfg)
+
+        profile_names = _profile_names(PROFILES_DIR)
+        self._dash.set_plant_count(s['plant_count'], profile_names, self._cfg)
+        self._graph.set_plant_count(s['plant_count'], self._cfg)
+        self._graph.set_csv(s['csv_path'])
+
+        self._on_status_message(f'Saved to {os.path.basename(LATEST_CFG_PATH)}')
+
+    def _on_save_as(self, path):
+        _save_json_atomic(path, self._cfg)
+        self._on_status_message(f'Saved to {os.path.basename(path)}')
+
+    @property
+    def bridge(self):
+        return self._bridge
+
+    def closeEvent(self, event):
+        if self._bridge is not None:
+            self._bridge.shutdown()
+        super().closeEvent(event)
+
+
+# ---------------------------------------------------------------------------
+# Entry points
+# ---------------------------------------------------------------------------
+def launch(cfg_path=None, csv_path=None, plantpi=None):
+    """Launch the Qt UI programmatically (e.g. from PlantPi.py --ui).
+
+    plantpi:  live PlantPi instance for direct sensor reads and state updates.
+    csv_path: overrides the config's 'file' path for the graph.
+    """
+    if cfg_path is None:
+        cfg_path = DEFAULT_CFG_PATH
+    app = QApplication.instance() or QApplication([sys.argv[0]])
+    app.setApplicationName('PlantPi')
+    app.setStyle(_TooltipDelayStyle())
+
+    # On macOS the menu-bar / dock name comes from CFBundleName, not Qt's app name.
+    if sys.platform == 'darwin':
+        try:
+            from Foundation import NSBundle
+            info = NSBundle.mainBundle().infoDictionary()
+            info['CFBundleName'] = 'PlantPi'
+            info['CFBundleDisplayName'] = 'PlantPi'
+        except Exception:
+            pass
+
+    # Let Ctrl+C quit cleanly instead of SIGABRT-crashing inside Qt's C++ loop.
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+
+    # Build the app icon by rendering the PlantIcon widget off-screen.
+    _icon_widget = PlantIcon()
+    _icon_widget.resize(_icon_widget._W, _icon_widget._H)
+    app.setWindowIcon(QIcon(_icon_widget.grab()))
+
+    win = MainWindow(cfg_path, csv_path=csv_path, plantpi=plantpi)
+    if plantpi is not None and win.bridge is not None:
+        plantpi._ui_bridge = win.bridge
+    win.show()
+    return app.exec() if _QT == 6 else app.exec_()

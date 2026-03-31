@@ -4,23 +4,26 @@
   "verbose": true,
   "quiet": true,
   "long_sample": 5,
-  "max_size": 5000,
   "cistern_gpio": 18,
+  "simu_quit": false,
   "simulator": "simu/top_and_bottom_fill_sample.csv",
   "plants": [
     {
-      "profile": "dracaena",
+      "profile": "dragon_plant",
       "top_channel": 0,
       "bottom_channel": 1,
       "pump_gpio": 14,
       "soil_profile": "default",
-      "fill_time": 1,
+      "fill_time": 5.0,
       "fill_pad": 0.9,
-      "max_continuous": 30,
-      "max_daily": 300
+      "max_continuous": 30.0,
+      "max_daily": 3000000000,
+      "moisture_min": 2.0,
+      "moisture_max": 7.0,
+      "dry_alert": 7200.0
     },
     {
-      "profile": "dracaena",
+      "profile": "dragon_plant",
       "top_channel": 2,
       "bottom_channel": 3,
       "pump_gpio": 15,
@@ -28,10 +31,10 @@
       "fill_time": 1,
       "fill_pad": 0.9,
       "max_continuous": 30,
-      "max_daily": 300
+      "max_daily": 3000000000
     },
     {
-      "profile": "dracaena",
+      "profile": "dragon_plant",
       "top_channel": 4,
       "bottom_channel": 5,
       "pump_gpio": 16,
@@ -39,10 +42,10 @@
       "fill_time": 1,
       "fill_pad": 0.9,
       "max_continuous": 30,
-      "max_daily": 300
+      "max_daily": 3000000000
     },
     {
-      "profile": "dracaena",
+      "profile": "dragon_plant",
       "top_channel": 6,
       "bottom_channel": 7,
       "pump_gpio": 17,
@@ -50,7 +53,7 @@
       "fill_time": 1,
       "fill_pad": 0.9,
       "max_continuous": 30,
-      "max_daily": 300
+      "max_daily": 3000000000
     }
   ]
 }

@@ -9,7 +9,7 @@
   "simulator": "tests/topoff_sample.csv",
   "plants": [
     {
-      "profile": "dracaena",
+      "profile": "dragon_plant",
       "top_channel": 0,
       "pump_gpio": 14,
       "soil_profile": "default",

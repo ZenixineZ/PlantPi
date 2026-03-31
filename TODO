@@ -17,14 +17,29 @@ TODO:
            	-water level indicator in cistern
         -[SOFTWARE]
            	-control/config ui
-                -Real time graph: find a better graphing library for growing graphs, ideally one that can be zoomed in easily on the new data
+                -VIBE CHECKS: 
+                      12. Replaced QTabWidget with _EvenTabWidget / _EvenTabBar so each tab is exactly bar_width / tab_count wide.
+                      15. Removed the file dialog from plant card profile saving — filename is now always derived from the display
+                      name, with an overwrite prompt on conflict.
+                      16. Swapped Back and Apply button order on the plant card config page.
+                      17. Removed the per-card _cfg_status label and routed all card status messages through a new status_message
+                      signal to the main window's left-aligned status bar.
+                -file dialog for card saves
+                -how to manage plant profile names/file names. Probably just standardize a mapping and ban mapped characters
+                -add tool tips for each field in profiles
+                -Spin boxes and line edits look shitty, maybe round edges and add margin?
+                -group boxes look shitty
+                -touch screen integrtion
+
            	-lighting system, different colors for different fill types, selectable patterns, music mode...?
-           	-monitor pi that listens for heartbeat from plantpi and reports outtages
            	-light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
            	-(I guess vnc in until you start at web dev) runs website tracker (ios compatible?) via home network
 
     -V3:
         -camera for visual monitoring and AI that can tell when overwatering and under sunning is occuring
+        -seasonal weights for plant profiles to prevent winter overwatering
+        -nutrient delivery
+
 
 Existing Procuts
 

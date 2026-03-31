@@ -11,6 +11,8 @@ state.json
 !sample_simu.csv
 !simu/*_sample.csv
 !tests/*_sample.csv
+plantpi.json
+latest_cfg.json
 email_auth.json
 *.DS_Store
 
