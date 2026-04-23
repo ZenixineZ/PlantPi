@@ -4,17 +4,24 @@
   "verbose": true,
   "quiet": false,
   "long_sample": 5,
+  "max_size": 5000,
+  "cistern_gpio": 18,
   "simulator": "tests/dry_alert_sample.csv",
+  "plant_count": 1,
   "plants": [
     {
-      "profile": "dragon_plant",
+      "plant_name": "Dragon Plant (Dracaena)",
+      "icon": "resources/dragon_plant.png",
       "top_channel": 0,
       "pump_gpio": 14,
-      "soil_profile": "default",
-      "fill_time": 1,
-      "max_continuous": 30,
-      "max_daily": 300,
-      "dry_alert": 3
+      "soil_name": null,
+      "fill_time": 1.0,
+      "fill_pad": 0.9,
+      "max_continuous": 30.0,
+      "max_daily": 300.0,
+      "moisture_min": 3.0,
+      "moisture_max": 7.0,
+      "dry_alert": 3.0
     }
   ]
 }

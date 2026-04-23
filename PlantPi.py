@@ -16,6 +16,10 @@ from Emailer import Emailer
 from RestServer import RestServer
 from profiles import SoilProfile, PlantProfile
 
+from _utils import (
+    _name_to_filename
+)
+
 DEFAULT_FILE_PATH      =       os.environ.get('PLANTPI_FILE_PATH',      os.path.join(plantpi_path, 'data.csv'))
 DEFAULT_FILL_TIME      = float(os.environ.get('PLANTPI_FILL_TIME',      5))
 DEFAULT_FILL_PAD       = float(os.environ.get('PLANTPI_FILL_PAD',       0.9))
@@ -308,12 +312,11 @@ class PlantPi:
                 with open(os.path.join(profile_path, f), 'r') as p:
                     j = json.load(p)
                     try:
-                        pp = PlantProfile(j['name'], j['moisture_min'], j['moisture_max'])
+                        pp = PlantProfile(j['name'], j.get('icon', ''), j['moisture_min'], j['moisture_max'])
                         pp.filename = f[:-5]
                         self.profiles.append(pp)
                     except Exception as e:
                         log(f"Warning: Failed to parse {os.path.join(profile_path, f)} into PlantProfile: {e}")
-
         # Initialize ADCs (hardware or fake for simulator)
         if args.simulator:
             self.adcs = [FakeADC(), FakeADC()]
@@ -325,11 +328,11 @@ class PlantPi:
         # Build PlantControllers from config dicts
         self.plant_controllers = []
         for i, plant_cfg in enumerate(plant_args):
-            profile_name   = plant_cfg.get('profile')
+            profile_name   = plant_cfg.get('plant_name')
             top_ch         = plant_cfg.get('top_channel')
             bottom_ch      = plant_cfg.get('bottom_channel')
             gpio           = plant_cfg.get('pump_gpio')
-            soil_name      = plant_cfg.get('soil_profile', DEFAULT_SOIL_PROFILE)
+            soil_name      = plant_cfg.get('soil_name', DEFAULT_SOIL_PROFILE)
             fill_time      = plant_cfg.get('fill_time',      DEFAULT_FILL_TIME)
             fill_pad       = plant_cfg.get('fill_pad',       DEFAULT_FILL_PAD)
             max_continuous = plant_cfg.get('max_continuous', DEFAULT_MAX_CONTINUOUS)
@@ -353,15 +356,15 @@ class PlantPi:
                 sys.exit(1)
 
             # Load soil profile
-            if soil_name == DEFAULT_SOIL_PROFILE:
+            if soil_name == DEFAULT_SOIL_PROFILE or not soil_name:
                 soil_profile = SoilProfile()
             else:
-                sp_path = os.path.join(soil_profile_dir, soil_name + '.json')
+                sp_path = os.path.join(soil_profile_dir, _name_to_filename(soil_name) + '.json')
                 if os.path.exists(sp_path):
                     with open(sp_path) as f:
                         j = json.load(f)
                         soil_profile = SoilProfile(
-                            j.get('dry_sensor', 0.428), j.get('wet_sensor', 0.283),
+                            j.get('name', 'Default'), j.get('dry_sensor', 0.428), j.get('wet_sensor', 0.283),
                             j.get('dry_std', 1.5), j.get('wet_std', 10))
                 else:
                     log(f"Warning: soil profile '{soil_name}' not found at {sp_path}, using defaults")
@@ -529,7 +532,7 @@ class PlantPi:
         result = []
         for i, pc in enumerate(self.plant_controllers):
             pc.get_data()
-            d = {'plant': i, 'name': pc.plant_profile.name,
+            d = {'plant': i, 'plant_name': pc.plant_profile.name,
                  'time': get_time(self.time, False), 'pump': pc.pump.value == 1,
                  'moisture_top': pc.moisture_top, 'moisture_bottom': pc.moisture_bottom}
             result.append(d)
@@ -594,7 +597,7 @@ class PlantPi:
         msg = None
         if 'moisture_max' in j:
             try:
-                pc.plant_profile = PlantProfile(str(j['name']), float(j['moisture_min']), float(j['moisture_max']))
+                pc.plant_profile = PlantProfile(str(j['name']), str(j.get('icon', '')), float(j['moisture_min']), float(j['moisture_max']))
                 msg = f'Plant {plant_idx} profile set to:\n' + json.dumps(j, indent=4)
             except (KeyError, ValueError, AssertionError) as e:
                 return jsonify(f"Invalid profile fields: {e}"), 400
@@ -823,7 +826,6 @@ class PlantPi:
                 if self._ui_bridge is not None:
                     self._ui_bridge.push([{
                         'plant':            i,
-                        'name':             pc.plant_profile.name,
                         'pump':             pc.pump.value == 1,
                         'moisture_top':     pc.moisture_top,
                         'moisture_bottom':  pc.moisture_bottom,

@@ -15,7 +15,7 @@ Running with 1 plant(s): 'Dragon Plant (Dracaena)'
 [Dragon Plant (Dracaena)] Pump On
 [Dragon Plant (Dracaena)] Pump Off
 
-[Warning: [Dragon Plant (Dracaena)] moisture has been critically low for 0.0h (reading: 1.97, min: 3). Please inspect the plant and watering system.]
+[Warning: [Dragon Plant (Dracaena)] moisture has been critically low for 0.0h (reading: 1.97, min: 3.0). Please inspect the plant and watering system.]
 
 [Email sent: [Dragon Plant (Dracaena)] Pump Activated]
 [Email sent: [Dragon Plant (Dracaena)] Sustained Low Moisture]

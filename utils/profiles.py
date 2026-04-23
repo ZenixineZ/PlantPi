@@ -3,12 +3,15 @@
 
 
 class SoilProfile:
-    def __init__(self, dry_sensor=0.428, wet_sensor=0.283, dry_std=1.5, wet_std=10):
+    def __init__(self, name='Default', dry_sensor=0.428, wet_sensor=0.283, dry_std=1.5, wet_std=10):
+        self.name = name
         self.dry_sensor = dry_sensor
         self.wet_sensor = wet_sensor
         self.dry_std = dry_std
         self.wet_std = wet_std
         # y = mx + b, y is std moisture, x is sensor moisture
+        if wet_sensor == dry_sensor:
+            raise ValueError('dry_sensor and wet_sensor cannot be equal (division by zero)')
         self._m = (wet_std - dry_std) / (wet_sensor - dry_sensor)
         self._b = dry_std - self._m * dry_sensor
 
@@ -17,8 +20,9 @@ class SoilProfile:
 
 
 class PlantProfile:
-    def __init__(self, name, moisture_min, moisture_max):
+    def __init__(self, name, icon, moisture_min, moisture_max):
         assert moisture_min >= 0 and moisture_max >= 0 and moisture_min <= moisture_max
         self.name = name
+        self.icon = icon
         self.moisture_min = moisture_min
         self.moisture_max = moisture_max

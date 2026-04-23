@@ -14,7 +14,7 @@ Running with 1 plant(s): 'Dragon Plant (Dracaena)'
 
 [... pump-on iterations ...]
 
-Error: [Dragon Plant (Dracaena)] Pump has been on for over 3 seconds. Shutting down, please inspect sensor data
+Error: [Dragon Plant (Dracaena)] Pump has been on for over 3.0 seconds. Shutting down, please inspect sensor data
 [Dragon Plant (Dracaena)] Pump Off
 
 Quitting...

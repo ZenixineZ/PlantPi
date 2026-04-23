@@ -1,1 +1,6 @@
-{"name": "Dragon Plant (Dracaena)", "moisture_min": 3, "moisture_max": 7, "light_min": 4, "light_max": 7}
+{
+  "name": "Dragon Plant (Dracaena)",
+  "icon": "resources/dragon_plant.png",
+  "moisture_min": 3.0,
+  "moisture_max": 7.0
+}

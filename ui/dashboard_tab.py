@@ -2,39 +2,31 @@
 """DashboardTab — live plant status cards for PlantPi UI."""
 
 import os
+import traceback
+from PIL import Image
 
-try:
-    from PyQt5.QtWidgets import (
-        QWidget, QFrame, QLabel, QLineEdit, QPushButton, QDoubleSpinBox,
-        QGroupBox, QTextEdit, QHBoxLayout, QVBoxLayout,
-        QFormLayout, QStackedWidget, QSizePolicy, QComboBox,
-        QMessageBox,
-    )
-    from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QSize, QRectF
-    from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QFont, QPainterPath, QIcon
-    _QT = 5
-except ImportError:
-    from PyQt6.QtWidgets import (
-        QWidget, QFrame, QLabel, QLineEdit, QPushButton, QDoubleSpinBox,
-        QGroupBox, QTextEdit, QHBoxLayout, QVBoxLayout,
-        QFormLayout, QStackedWidget, QSizePolicy, QComboBox,
-        QMessageBox,
-    )
-    from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QRectF
-    from PyQt6.QtGui import QPainter, QColor, QBrush, QPen, QFont, QPainterPath, QIcon
-    _QT = 6
+from QtShim import (
+    QWidget, QFrame, QLabel, QLineEdit, QPushButton, QDoubleSpinBox,
+    QGroupBox, QTextEdit, QHBoxLayout, QVBoxLayout, QFileDialog,
+    QFormLayout, QStackedWidget, QComboBox, QMessageBox,
+    Qt, pyqtSignal, QTimer, QSize, QRectF,
+    QPainter, QColor, QBrush, QPen, QFont, QPainterPath, QIcon, QPixmap,
+    Align, Brush, Font, Frame, MessageBox, Painter, Pen, ScrollBar, SizePolicy,
+    font_text_width,
+
+)
 
 from _utils import (
     PROFILES_DIR, SOIL_PROFILES_DIR,
-    _load_json, _save_json_atomic, _profile_display_map, _soil_profile_names,
+    _load_json, _save_json_atomic, _profile_names, _soil_profile_names,
     _name_to_filename,
 )
 
 
 # Three greys: darkest at the outer edge of the card, lightest at the center
-_GREY_1 = '#777777'   # plant index
-_GREY_2 = '#999999'   # plant name
-_GREY_3 = '#bbbbbb'   # moisture value
+_GREY_1 = '#aaaaaa'   # plant index
+_GREY_2 = '#dddddd'   # plant name
+_GREY_3 = '#eeeeee'   # moisture value
 
 
 # ---------------------------------------------------------------------------
@@ -62,14 +54,13 @@ class PlantIcon(QWidget):
 
     def paintEvent(self, _event):
         p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing if _QT == 6
-                        else QPainter.Antialiasing)
+        p.setRenderHint(Painter.Antialiasing)
 
         w, h = self._W, self._H
 
         # --- pot (brown trapezoid) ---
         pot_top_y   = h * 0.62
-        pot_bot_y   = h * 0.92
+        pot_bot_y   = h * 1
         pot_top_w   = w * 0.52
         pot_bot_w   = w * 0.44
         cx          = w / 2
@@ -95,7 +86,7 @@ class PlantIcon(QWidget):
         p.drawLine(int(stem_x), int(stem_y0), int(stem_x), int(stem_y1))
 
         # --- leaves (three filled ovals) ---
-        p.setPen(Qt.PenStyle.NoPen if _QT == 6 else Qt.NoPen)
+        p.setPen(Pen.NoPen)
         p.setBrush(QBrush(QColor('#4CAF50')))
         # left leaf
         p.save()
@@ -119,7 +110,7 @@ class PlantIcon(QWidget):
         # --- water drops (3 blue teardrops above plant) ---
         if self._watering:
             p.setBrush(QBrush(QColor('#42A5F5')))
-            p.setPen(Qt.PenStyle.NoPen if _QT == 6 else Qt.NoPen)
+            p.setPen(Pen.NoPen)
             for i, dx in enumerate([-14, 0, 14]):
                 drop_x = cx + dx
                 drop_y = h * 0.08 + (i % 2) * 8
@@ -151,10 +142,7 @@ class MoistureDial(QWidget):
         self._value = None
         self._vmin  = 0.0
         self._vmax  = 10.0
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding if _QT == 6 else QSizePolicy.Expanding,
-            QSizePolicy.Policy.Expanding if _QT == 6 else QSizePolicy.Expanding,
-        )
+        self.setSizePolicy(SizePolicy.Expanding, SizePolicy.Expanding)
         self.setMinimumSize(40, 40)
 
     def sizeHint(self):
@@ -172,22 +160,21 @@ class MoistureDial(QWidget):
 
     def paintEvent(self, _event):
         p = QPainter(self)
-        p.setRenderHint(
-            QPainter.RenderHint.Antialiasing if _QT == 6 else QPainter.Antialiasing)
+        p.setRenderHint(Painter.Antialiasing)
 
         # Keep drawing square and centred inside the (possibly non-square) widget
         s = min(self.width(), self.height())
-        p.translate((self.width() - s) / 2, (self.height() - s) / 2)
+        p.translate((self.width() - s) / 2, (self.height() - s) / 2 + 14)
 
         pen_w    = max(3, int(s * 0.083))
         hw       = pen_w / 2 + 1
         arc_rect = QRectF(hw, hw, s - 2 * hw, s - 2 * hw)
 
         # Background track
-        bg_pen = QPen(QColor(_GREY_3), pen_w)
-        bg_pen.setCapStyle(Qt.PenCapStyle.RoundCap if _QT == 6 else Qt.RoundCap)
+        bg_pen = QPen(QColor(_GREY_1), pen_w)
+        bg_pen.setCapStyle(Pen.RoundCap)
         p.setPen(bg_pen)
-        p.setBrush(Qt.BrushStyle.NoBrush if _QT == 6 else Qt.NoBrush)
+        p.setBrush(Brush.NoBrush)
         p.drawArc(arc_rect, self._START * 16, -self._SPAN * 16)
 
         # Value arc (red → cyan-blue as value rises across min→max range)
@@ -196,23 +183,20 @@ class MoistureDial(QWidget):
             frac = max(0.0, min(1.0, (self._value - self._vmin) / span)) if span else 0.5
             color = QColor.fromHsv(int(frac ** 2 * 200), 210, 200)
             val_pen = QPen(color, pen_w)
-            val_pen.setCapStyle(Qt.PenCapStyle.RoundCap if _QT == 6 else Qt.RoundCap)
+            val_pen.setCapStyle(Pen.RoundCap)
             p.setPen(val_pen)
             p.drawArc(arc_rect, self._START * 16, -int(frac * self._SPAN * 16))
-
-        align_c = Qt.AlignmentFlag.AlignCenter if _QT == 6 else Qt.AlignCenter
 
         # Large center number
         p.setPen(QColor(_GREY_3))
         val_str = f'{self._value:.1f}' if self._value is not None else '—'
-        p.setFont(QFont('', max(8, int(s * 0.22)),
-                        QFont.Weight.Bold if _QT == 6 else QFont.Bold))
-        p.drawText(QRectF(0, -s * 0.10, s, s), align_c, val_str)
+        p.setFont(QFont('', max(8, int(s * 0.22)), Font.Bold))
+        p.drawText(QRectF(0, -s * 0.10, s, s), Align.Center, val_str)
 
         # Small label below the number
-        p.setPen(QColor(_GREY_3))
+        p.setPen(QColor(_GREY_1))
         p.setFont(QFont('', max(6, int(s * 0.10))))
-        p.drawText(QRectF(0, s * 0.58, s, s * 0.30), align_c, self._label)
+        p.drawText(QRectF(0, s * 0.58, s, s * 0.30), Align.Center, self._label)
 
         p.end()
 
@@ -224,30 +208,30 @@ class PlantCard(QFrame):
     """Card widget for one plant.  Gear icon flips to an inline config form."""
 
     applied = pyqtSignal(int, dict)   # (plant_idx, cfg_dict)
-    profile_saved = pyqtSignal()      # emitted after any profile file is written
+    profile_saved = pyqtSignal() 
+    soil_profile_saved = pyqtSignal()      # emitted after any profile file is written
     status_message = pyqtSignal(str)  # routed to the main window status bar
 
-    def __init__(self, plant_idx, cfg, profile_names=None, parent=None):
+    def __init__(self, plant_idx, cfg, profile_names=None, plantpi=None, parent=None):
         super().__init__(parent)
         self._idx = plant_idx
+        self._plantpi = plantpi
         self._has_bottom = cfg.get('bottom_channel') is not None
-        self._original_profile = cfg.get('profile', '')
-        self._original_soil_profile = cfg.get('soil_profile', '')
+        self._original_profile = cfg.get('plant_name', '')
+        self._original_soil_profile = cfg.get('soil_name', '')
 
-        self.setFrameShape(QFrame.Shape.StyledPanel if _QT == 6
-                           else QFrame.StyledPanel)
-        self.setMinimumWidth(220)
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding if _QT == 6 else QSizePolicy.Expanding,
-            QSizePolicy.Policy.Expanding if _QT == 6 else QSizePolicy.Expanding,
-        )
+        self.setFrameShape(Frame.StyledPanel)
+        self.setMinimumWidth(250)
+        self.setSizePolicy(SizePolicy.Expanding, SizePolicy.Expanding)
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._build_view_page(cfg))
         self._stack.addWidget(self._build_config_page(cfg))
 
+        self._set_icon(self._icon_path)
+
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
+        root.setContentsMargins(8, 8, 8, 8)
         root.addWidget(self._stack)
 
         self._update_bottom_visibility(self._has_bottom)
@@ -259,8 +243,8 @@ class PlantCard(QFrame):
     def _build_view_page(self, cfg):
         page = QWidget()
 
-        _ac = Qt.AlignmentFlag.AlignHCenter if _QT == 6 else Qt.AlignHCenter
-        _at = Qt.AlignmentFlag.AlignTop     if _QT == 6 else Qt.AlignTop
+        _ac = Align.HCenter
+        _at = Align.Top
 
         # Plant index (1-based), small and grey
         idx_lbl = QLabel(f'Plant {self._idx + 1}')
@@ -272,16 +256,16 @@ class PlantCard(QFrame):
 
         # Plant name, bold and centred
         self._name_lbl = QLabel(
-            cfg.get('name', cfg.get('profile', f'Plant {self._idx + 1}')))
+            cfg.get('plant_name', ''))
         self._name_lbl.setFont(
-            QFont('', 16, QFont.Weight.Bold if _QT == 6 else QFont.Bold))
+            QFont('', 16, Font.Bold))
         self._name_lbl.setStyleSheet(f'color: {_GREY_2};')
         self._name_lbl.setWordWrap(True)
         self._name_lbl.setAlignment(_ac)
 
         # Top: centred name block
         name_col = QVBoxLayout()
-        name_col.setSpacing(2)
+        name_col.setSpacing(8)
         name_col.addWidget(idx_lbl)
         name_col.addWidget(self._name_lbl)
 
@@ -292,10 +276,28 @@ class PlantCard(QFrame):
 
         # Icon centred
         self._icon = PlantIcon()
-        icon_row = QHBoxLayout()
-        icon_row.addStretch()
-        icon_row.addWidget(self._icon)
-        icon_row.addStretch()
+        self._icon_row = QHBoxLayout()
+        self._icon_row.addStretch()
+        self._icon_row.addWidget(self._icon)
+        self._icon_row.addStretch()
+
+        # Soil name, bold and centred
+        self._soil_lbl = QLabel(
+            cfg.get('soil_name', 'Default'))
+        self._soil_lbl.setFont(
+            QFont('', 12, Font.Bold))
+        self._soil_lbl.setStyleSheet(f'color: {_GREY_2};')
+        self._soil_lbl.setWordWrap(True)
+        self._soil_lbl.setAlignment(_ac)
+
+        # Below: centred soil block
+        soil_col = QVBoxLayout()
+        soil_col.addWidget(self._soil_lbl)
+
+        soil_row = QHBoxLayout()
+        soil_row.addStretch()
+        soil_row.addLayout(soil_col)
+        soil_row.addStretch()
 
         # Dials stacked vertically, centred
         self._top_dial = MoistureDial('Top')
@@ -308,8 +310,7 @@ class PlantCard(QFrame):
         dials.setSpacing(4)
         dials.addWidget(self._top_dial)
         dials.addWidget(self._bot_dial)
-
-
+        dials.setContentsMargins(0,0,0,0)
 
         gear = QPushButton()
         gear.setIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'gear_white.png')))
@@ -317,19 +318,21 @@ class PlantCard(QFrame):
         gear.setIconSize(QSize(32, 32))
         gear.setStyleSheet('QPushButton { padding: 0; }')
         gear.setToolTip('Configure plant')
-        gear.clicked.connect(lambda: self._stack.setCurrentIndex(1))
+        gear.clicked.connect(self._open_config)
 
         gear_row = QHBoxLayout()
         gear_row.addStretch()
         gear_row.addWidget(gear)
         gear_row.addStretch()
+        gear_row.setContentsMargins(0,0,0,14)
 
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
         layout.addStretch()
         layout.addLayout(name_row)
-        layout.addLayout(icon_row)
+        layout.addLayout(self._icon_row)
+        layout.addLayout(soil_row)
         layout.addLayout(dials, 1)
         layout.addLayout(gear_row)
         layout.addStretch()
@@ -363,41 +366,30 @@ class PlantCard(QFrame):
         self._bold_groupbox(plant_grp)
         plant_form = self._tight_form(plant_grp)
 
-        self._profile_map = _profile_display_map()
-
         # Combobox for selecting an existing plant profile to load
         self._plant_combo = QComboBox()
+        self._plant_combo.addItem('— default —')
         self._plant_combo.addItem('— custom —')
-        for dname in sorted(self._profile_map.keys()):
-            self._plant_combo.addItem(dname)
+        for fname in sorted(f for f in _profile_names(PROFILES_DIR) if f != 'default'):
+            self._plant_combo.addItem(fname)
         if self._original_profile:
-            _rev = {v: k for k, v in self._profile_map.items()}
-            _init = _rev.get(self._original_profile, '')
-            if _init:
-                _idx = self._plant_combo.findText(_init)
-                if _idx >= 0:
-                    self._plant_combo.blockSignals(True)
-                    self._plant_combo.setCurrentIndex(_idx)
-                    self._plant_combo.blockSignals(False)
+            _idx = self._plant_combo.findText(_name_to_filename(self._original_profile))
+            if _idx >= 0:
+                self._plant_combo.blockSignals(True)
+                self._plant_combo.setCurrentIndex(_idx)
+                self._plant_combo.blockSignals(False)
         _t = 'Load an existing plant profile to populate the fields below'
         self._plant_combo.setToolTip(_t)
         _lbl = QLabel('Profile:'); _lbl.setToolTip(_t)
         plant_form.addRow(_lbl, self._plant_combo)
         self._plant_combo.currentIndexChanged.connect(self._on_plant_combo_changed)
 
-        initial_display = cfg.get('name', '')
-        if not initial_display and cfg.get('profile'):
-            pdata = _load_json(os.path.join(PROFILES_DIR, cfg['profile'] + '.json'))
-            initial_display = pdata.get('name', cfg['profile'])
+        initial_display = cfg.get('plant_name', '')
         self._name_edit = QTextEdit()
         self._name_edit.setPlainText('')
         self._name_edit.setAcceptRichText(False)
-        self._name_edit.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff if _QT == 6
-            else Qt.ScrollBarAlwaysOff)
-        self._name_edit.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff if _QT == 6
-            else Qt.ScrollBarAlwaysOff)
+        self._name_edit.setHorizontalScrollBarPolicy(ScrollBar.AlwaysOff)
+        self._name_edit.setVerticalScrollBarPolicy(ScrollBar.AlwaysOff)
         self._name_edit.document().contentsChanged.connect(self._fit_name_edit)
         QTimer.singleShot(0, lambda: (self._stack.setCurrentIndex(1),
                                       self._name_edit.setPlainText(initial_display),
@@ -407,6 +399,7 @@ class PlantCard(QFrame):
         self._name_edit.setToolTip(_t)
         _lbl = QLabel('Name:'); _lbl.setToolTip(_t)
         plant_form.addRow(_lbl, self._name_edit)
+        self._name_edit.document().contentsChanged.connect(self._update_plant_save_btn)
 
         _vmin, _vmax = self._moisture_range(cfg)
 
@@ -428,10 +421,31 @@ class PlantCard(QFrame):
         _lbl = QLabel('Max moisture:'); _lbl.setToolTip(_t)
         plant_form.addRow(_lbl, self._mmax)
 
-        btn_save_plant = QPushButton('Save Plant Profile…')
-        btn_save_plant.setToolTip('Save the current name and moisture thresholds as a reusable profile file')
-        btn_save_plant.clicked.connect(self._save_profile)
-        plant_form.addRow('', btn_save_plant)
+        # Icon browse row
+        self._icon_path = cfg.get('icon', '')
+        if not self._icon_path and self._original_profile:
+            data = _load_json(os.path.join(PROFILES_DIR, _name_to_filename(self._original_profile) + '.json'))
+            self._icon_path = data.get('icon', '')
+        self._icon_clear_btn = QPushButton('X')
+        self._icon_clear_btn.setFixedWidth(32)
+        self._icon_clear_btn.setToolTip(self._icon_path)
+        self._icon_clear_btn.clicked.connect(self._clear_icon)
+        icon_browse_btn = QPushButton('Browse…')
+        icon_browse_btn.setToolTip('Browse for an icon image')
+        icon_browse_btn.clicked.connect(self._browse_icon)
+        icon_row_w = QWidget()
+        icon_row_lay = QHBoxLayout(icon_row_w)
+        icon_row_lay.setContentsMargins(0, 0, 0, 0)
+        icon_row_lay.setSpacing(2)
+        icon_row_lay.addWidget(icon_browse_btn)
+        icon_row_lay.addWidget(self._icon_clear_btn)
+        _lbl = QLabel('Icon:'); _lbl.setToolTip('Icon image file for this plant profile')
+        plant_form.addRow(_lbl, icon_row_w)
+
+        self._btn_save_plant = QPushButton('Save && Apply…')
+        self._btn_save_plant.setToolTip('Save the current name and moisture thresholds as a reusable profile file')
+        self._btn_save_plant.clicked.connect(self._save_profile)
+        plant_form.addRow('', self._btn_save_plant)
 
         # ---- Soil Profile group -----------------------------------------
         soil_grp = QGroupBox('Soil Profile')
@@ -439,16 +453,17 @@ class PlantCard(QFrame):
         soil_form = self._tight_form(soil_grp)
 
         soil_data = {}
-        if cfg.get('soil_profile'):
+        if cfg.get('soil_name'):
             soil_data = _load_json(
-                os.path.join(SOIL_PROFILES_DIR, cfg['soil_profile'] + '.json'))
+                os.path.join(SOIL_PROFILES_DIR, _name_to_filename(cfg['soil_name']) + '.json'))
 
         self._soil_combo = QComboBox()
         self._soil_combo.addItem('— default —')
+        self._soil_combo.addItem('— custom —')
         for _sname in _soil_profile_names():
             self._soil_combo.addItem(_sname)
-        if cfg.get('soil_profile'):
-            _sidx = self._soil_combo.findText(cfg['soil_profile'])
+        if cfg.get('soil_name'):
+            _sidx = self._soil_combo.findText(_name_to_filename(cfg['soil_name']))
             if _sidx >= 0:
                 self._soil_combo.blockSignals(True)
                 self._soil_combo.setCurrentIndex(_sidx)
@@ -458,6 +473,14 @@ class PlantCard(QFrame):
         _lbl = QLabel('Profile:'); _lbl.setToolTip(_t)
         soil_form.addRow(_lbl, self._soil_combo)
         self._soil_combo.currentIndexChanged.connect(self._on_soil_combo_changed)
+        _soil_is_default = not cfg.get('soil_name') or cfg.get('soil_name') == 'Default'
+
+        _soil_name_initial = 'Default' if _soil_is_default else soil_data.get('name', '')
+        self._soil_name = QLineEdit()
+        self._soil_name.setToolTip('Display name for this soil profile')
+        self._soil_name.setText(_soil_name_initial)
+        _lbl = QLabel('Name:'); _lbl.setToolTip('Display name for this soil profile')
+        soil_form.addRow(_lbl, self._soil_name)
 
         self._dry_sensor = QDoubleSpinBox()
         self._dry_sensor.setRange(0.0, 1.0)
@@ -497,10 +520,11 @@ class PlantCard(QFrame):
         _lbl = QLabel('Wet std:'); _lbl.setToolTip(_t)
         soil_form.addRow(_lbl, self._wet_std)
 
-        btn_save_soil = QPushButton('Save Soil Profile…')
-        btn_save_soil.setToolTip('Save the current calibration values as a reusable soil profile file')
-        btn_save_soil.clicked.connect(self._save_soil_profile)
-        soil_form.addRow('', btn_save_soil)
+        self._btn_save_soil = QPushButton('Save && Apply…')
+        self._btn_save_soil.setToolTip('Save the current calibration values as a reusable soil profile file')
+        self._btn_save_soil.clicked.connect(self._save_soil_profile)
+        soil_form.addRow('', self._btn_save_soil)
+        self._soil_name.textChanged.connect(self._update_soil_save_btn)
 
         # ---- Watering group ---------------------------------------------
         water_grp = QGroupBox('Watering')
@@ -558,16 +582,50 @@ class PlantCard(QFrame):
         water_form.addRow(_lbl, self._dry_alert)
 
         # ---- Apply/Back row ---------------------------------------------
-        btn_apply = QPushButton('Apply')
+        self._btn_apply = QPushButton('Apply')
+        self._btn_apply.setEnabled(False)
         btn_back = QPushButton('Back')
-        btn_apply.clicked.connect(self._apply)
-        btn_back.clicked.connect(lambda: self._stack.setCurrentIndex(0))
+        self._btn_apply.clicked.connect(self._apply)
+        btn_back.clicked.connect(self._back_config)
+
+        _plant_is_default = not self._original_profile
+        self._set_plant_editable(not _plant_is_default)
+        self._set_soil_editable(not _soil_is_default)
+        self._update_plant_save_btn()
+        self._update_soil_save_btn()
+
+        # Wire all change signals so Apply enables when something drifts
+        self._plant_combo.currentIndexChanged.connect(self._check_changes)
+        self._name_edit.document().contentsChanged.connect(self._check_changes)
+        self._mmin.valueChanged.connect(self._check_changes)
+        self._mmax.valueChanged.connect(self._check_changes)
+        self._soil_combo.currentIndexChanged.connect(self._check_changes)
+        self._soil_name.textChanged.connect(self._check_changes)
+        self._dry_sensor.valueChanged.connect(self._check_changes)
+        self._wet_sensor.valueChanged.connect(self._check_changes)
+        self._dry_std.valueChanged.connect(self._check_changes)
+        self._wet_std.valueChanged.connect(self._check_changes)
+
+        # Also update save buttons when their relevant fields change
+        self._mmin.valueChanged.connect(self._update_plant_save_btn)
+        self._mmax.valueChanged.connect(self._update_plant_save_btn)
+        self._dry_sensor.valueChanged.connect(self._update_soil_save_btn)
+        self._wet_sensor.valueChanged.connect(self._update_soil_save_btn)
+        self._dry_std.valueChanged.connect(self._update_soil_save_btn)
+        self._wet_std.valueChanged.connect(self._update_soil_save_btn)
+        self._fill_time.valueChanged.connect(self._check_changes)
+        self._fill_pad.valueChanged.connect(self._check_changes)
+        self._max_cont.valueChanged.connect(self._check_changes)
+        self._max_daily.valueChanged.connect(self._check_changes)
+        self._dry_alert.valueChanged.connect(self._check_changes)
+        self._applied_cfg = self._build_cfg()
+        self._applied_cfg['plant_name'] = initial_display
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(4)
         btn_row.addStretch()
         btn_row.addWidget(btn_back)
-        btn_row.addWidget(btn_apply)
+        btn_row.addWidget(self._btn_apply)
 
         # ---- Assemble page ----------------------------------------------
         page = QWidget()
@@ -582,6 +640,29 @@ class PlantCard(QFrame):
         layout.addLayout(btn_row)
         layout.addStretch()
         return page
+
+    def _set_icon(self, icon_path):
+        if icon_path:
+            icon = QLabel()
+            # TODO: Choose whether to scale for width or height depending on the icon better
+            with Image.open(icon_path) as img:
+                width, height = img.size
+                dpi = img.info.get('dpi')
+                if width > height:
+                    scale = 180/width
+                else:
+                    scale = 180/height
+                width *= scale
+                height *= scale
+            icon.setPixmap(QPixmap(icon_path).scaled(int(width), int(height), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        else:
+            icon = PlantIcon()
+        self._icon_path = icon_path
+        self._icon_clear_btn.setToolTip('Clear icon: '+icon_path if icon_path else 'No icon set')
+        self._icon_clear_btn.setEnabled(True if icon_path else False)
+        self._icon_row.removeWidget(self._icon)
+        self._icon = icon
+        self._icon_row.insertWidget(1, self._icon)
 
     # ------------------------------------------------------------------
     # Config helpers
@@ -601,14 +682,12 @@ class PlantCard(QFrame):
         return float(vmin if vmin is not None else 0), float(vmax if vmax is not None else 10)
 
     def _build_cfg(self):
-        _soil_text = self._soil_combo.currentText()
-        soil = None if _soil_text.startswith('—') else _soil_text
         return {
-            'profile':        self._original_profile,
-            'name':           self._name_edit.toPlainText().strip(),
+            'plant_name':     self._name_edit.toPlainText().strip(),
+            'icon':           self._icon_path or None,
             'moisture_min':   self._mmin.value(),
             'moisture_max':   self._mmax.value(),
-            'soil_profile':   soil,
+            'soil_name':      self._soil_name.text(),
             'fill_time':      self._fill_time.value(),
             'fill_pad':       self._fill_pad.value() / 100,
             'max_continuous': self._max_cont.value(),
@@ -616,17 +695,31 @@ class PlantCard(QFrame):
             'dry_alert':      self._dry_alert.value(),
         }
 
-    def _load_profile_by_display(self, display_name):
-        fname = self._profile_map.get(display_name)
-        if not fname:
-            return
-        self._original_profile = fname
+    def _clear_icon(self):
+        self._set_icon('')
+        self._update_plant_save_btn()
+        self._check_changes()
+
+    def _browse_icon(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, 'Select Icon', self._icon_path or '',
+            'Images (*.png *.jpg *.jpeg *.svg *.bmp *.gif)')
+        if path:
+            self._set_icon(path)
+            self._update_plant_save_btn()
+            self._check_changes()
+            
+    def _load_profile_by_fname(self, fname):
         data = _load_json(os.path.join(PROFILES_DIR, fname + '.json'))
-        self._name_edit.setPlainText(data.get('name', display_name))
+        self._original_profile = data.get('name', fname)
+        self._name_edit.setPlainText(data.get('name', fname))
         if 'moisture_min' in data:
             self._mmin.setValue(float(data['moisture_min']))
         if 'moisture_max' in data:
             self._mmax.setValue(float(data['moisture_max']))
+        icon = data.get('icon', '')
+        self._set_icon(icon)
+        self._icon_clear_btn.setToolTip(self._icon_path)
 
     def _save_profile(self):
         display_name = self._name_edit.toPlainText().strip()
@@ -636,26 +729,28 @@ class PlantCard(QFrame):
         fname = _name_to_filename(display_name)
         path = os.path.join(PROFILES_DIR, fname + '.json')
         os.makedirs(PROFILES_DIR, exist_ok=True)
-        if os.path.exists(path) and fname != self._original_profile:
+        if os.path.exists(path):
             if QMessageBox.question(
                     self, 'Overwrite?', f'"{fname}.json" already exists. Overwrite?',
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                    if _QT == 6 else QMessageBox.Yes | QMessageBox.No
-            ) != (QMessageBox.StandardButton.Yes if _QT == 6 else QMessageBox.Yes):
+                    MessageBox.Yes | MessageBox.No
+            ) != MessageBox.Yes:
                 return
-        _save_json_atomic(path, {
+        prof =  {
             'name':         display_name,
+            'icon':     self._icon_path,
             'moisture_min': self._mmin.value(),
             'moisture_max': self._mmax.value(),
-        })
-        self._original_profile = fname
-        self._profile_map[display_name] = fname
-        self._refresh_plant_combo(display_name)
+        }
+        _save_json_atomic(path, prof)
+        self._original_profile = display_name
+        self._refresh_plant_combo(fname)
         self.status_message.emit(f'Plant {self._idx + 1}: profile saved as "{fname}.json".')
         self.profile_saved.emit()
+        self._partial_emit(prof)
 
     def _load_soil_profile_by_name(self, name):
         data = _load_json(os.path.join(SOIL_PROFILES_DIR, name + '.json'))
+        self._soil_name.setText(data.get('name', ''))
         if 'dry_sensor' in data:
             self._dry_sensor.setValue(float(data['dry_sensor']))
         if 'wet_sensor' in data:
@@ -666,23 +761,27 @@ class PlantCard(QFrame):
             self._wet_std.setValue(float(data['wet_std']))
 
     def _save_soil_profile(self):
+        if not self._soil_sensors_valid():
+            return
         _cur = self._soil_combo.currentText()
-        _cur_name = '' if _cur.startswith('—') else _cur
-        fname = _name_to_filename(_cur_name) if _cur_name else self._original_soil_profile
+        if _cur.startswith('—'):
+            fname = _name_to_filename(self._soil_name.text())
+        else:
+            fname = _name_to_filename(_cur)
         if not fname:
             QMessageBox.warning(self, 'Save Soil Profile',
                                 'Select or name a soil profile first.')
             return
         path = os.path.join(SOIL_PROFILES_DIR, fname + '.json')
         os.makedirs(SOIL_PROFILES_DIR, exist_ok=True)
-        if os.path.exists(path) and fname != self._original_soil_profile:
+        if os.path.exists(path):
             if QMessageBox.question(
                     self, 'Overwrite?', f'"{fname}.json" already exists. Overwrite?',
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                    if _QT == 6 else QMessageBox.Yes | QMessageBox.No
-            ) != (QMessageBox.StandardButton.Yes if _QT == 6 else QMessageBox.Yes):
+                    MessageBox.Yes | MessageBox.No
+            ) != MessageBox.Yes:
                 return
         _save_json_atomic(path, {
+            'name':       self._soil_name.text(),
             'dry_sensor': self._dry_sensor.value(),
             'wet_sensor': self._wet_sensor.value(),
             'dry_std':    self._dry_std.value(),
@@ -691,56 +790,291 @@ class PlantCard(QFrame):
         self._original_soil_profile = fname
         self._refresh_soil_combo(fname)
         self.status_message.emit(f'Plant {self._idx + 1}: soil profile saved as "{fname}.json".')
-        self.profile_saved.emit()
+        self.soil_profile_saved.emit()
+        self._partial_emit({
+            'soil_name':       self._soil_name.text(),
+            'dry_sensor': self._dry_sensor.value(),
+            'wet_sensor': self._wet_sensor.value(),
+            'dry_std':    self._dry_std.value(),
+            'wet_std':    self._wet_std.value()
+        })
 
-    def _on_plant_combo_changed(self, idx):
-        if idx <= 0:
+    def _update_plant_save_btn(self):
+        not_default = self._plant_combo.currentText() != '— default —'
+        has_name    = bool(self._name_edit.toPlainText().strip())
+        if not has_name:
+            self._btn_apply.setEnabled(False)
+        if not (not_default and has_name):
+            self._btn_save_plant.setEnabled(False)
             return
-        self._load_profile_by_display(self._plant_combo.currentText())
+        if self._original_profile:
+            data = _load_json(os.path.join(PROFILES_DIR, _name_to_filename(self._original_profile) + '.json'))
+            changed = (
+                self._name_edit.toPlainText().strip() != data.get('name', '') or
+                self._icon_path != data.get('icon', '') or
+                self._mmin.value() != float(data.get('moisture_min', 0)) or
+                self._mmax.value() != float(data.get('moisture_max', 10))
+            )
+            self._btn_save_plant.setEnabled(changed)
+        else:
+            self._btn_save_plant.setEnabled(True)
 
-    def _on_soil_combo_changed(self, idx):
-        if idx <= 0:
+    def _update_soil_save_btn(self, *_):
+        not_default = self._soil_combo.currentText() != '— default —'
+        has_name    = bool(self._soil_name.text().strip())
+        if not has_name:
+            self._btn_apply.setEnabled(False)
+        if not (not_default and has_name):
+            self._btn_save_soil.setEnabled(False)
+            return
+        if self._original_soil_profile:
+            data = _load_json(os.path.join(SOIL_PROFILES_DIR, self._original_soil_profile + '.json'))
+            changed = (
+                self._soil_name.text() != data.get('name', '') or
+                self._dry_sensor.value() != float(data.get('dry_sensor', 0.428)) or
+                self._wet_sensor.value() != float(data.get('wet_sensor', 0.283)) or
+                self._dry_std.value()    != float(data.get('dry_std', 1.5)) or
+                self._wet_std.value()    != float(data.get('wet_std', 10.0))
+            )
+            self._btn_save_soil.setEnabled(changed)
+        else:
+            self._btn_save_soil.setEnabled(True)
+
+    def _set_plant_editable(self, editable):
+        for w in (self._name_edit, self._mmin, self._mmax):
+            w.setEnabled(editable)
+
+    def _on_plant_combo_changed(self, *_):
+        text = self._plant_combo.currentText()
+        if text == '— default —':
+            self._name_edit.setPlainText('Default')
+            self._mmin.setValue(3.0)
+            self._mmax.setValue(7.0)
+            self._set_plant_editable(False)
+        elif text == '— custom —':
+            self._name_edit.setPlainText('')
+            self._mmin.setValue(0.0)
+            self._mmax.setValue(0.0)
+            self._set_plant_editable(True)
+        else:
+            self._load_profile_by_fname(text)
+            self._set_plant_editable(True)
+        self._update_plant_save_btn()
+
+    def _soil_sensors_valid(self):
+        """Return True if dry/wet sensor values differ; show an error and return False if not."""
+        if self._dry_sensor.value() == self._wet_sensor.value():
+            QMessageBox.warning(self, 'Invalid Soil Profile',
+                                'Dry sensor and wet sensor values cannot be equal — '
+                                'this would cause a division by zero in the moisture mapping.')
+            return False
+        return True
+
+    def _set_soil_editable(self, editable):
+        for w in (self._soil_name, self._dry_sensor, self._wet_sensor, self._dry_std, self._wet_std):
+            w.setEnabled(editable)
+
+    def _on_soil_combo_changed(self, *_):
+        text = self._soil_combo.currentText()
+        if text == '— default —':
+            self._soil_name.setText('Default')
             self._dry_sensor.setValue(0.428)
             self._wet_sensor.setValue(0.283)
             self._dry_std.setValue(1.5)
             self._wet_std.setValue(10.0)
             self._original_soil_profile = ''
-            return
-        name = self._soil_combo.currentText()
-        self._original_soil_profile = name
-        self._load_soil_profile_by_name(name)
+            self._set_soil_editable(False)
+        elif text == '— custom —':
+            self._soil_name.setText('')
+            self._dry_sensor.setValue(0.0)
+            self._wet_sensor.setValue(0.0)
+            self._dry_std.setValue(0.0)
+            self._wet_std.setValue(0.0)
+            self._original_soil_profile = ''
+            self._set_soil_editable(True)
+        else:
+            self._original_soil_profile = text
+            self._load_soil_profile_by_name(text)
+            self._set_soil_editable(True)
+        self._update_soil_save_btn()
 
-    def _refresh_plant_combo(self, select_display=None):
+    def _refresh_plant_combo(self, select_fname=None):
+        cur_plant = self._plant_combo.currentText()
         self._plant_combo.blockSignals(True)
         self._plant_combo.clear()
+        self._plant_combo.addItem('— default —')
         self._plant_combo.addItem('— custom —')
-        for dname in sorted(self._profile_map.keys()):
-            self._plant_combo.addItem(dname)
-        if select_display:
-            idx = self._plant_combo.findText(select_display)
+        for fname in sorted(f for f in _profile_names(PROFILES_DIR) if f != 'default'):
+            self._plant_combo.addItem(fname)
+        select_fname = select_fname or (cur_plant if not cur_plant.startswith('—') else None)
+        found = False
+        if select_fname:
+            idx = self._plant_combo.findText(select_fname)
             if idx >= 0:
                 self._plant_combo.setCurrentIndex(idx)
-        self._plant_combo.blockSignals(False)
+                self._plant_combo.blockSignals(False)
+                found = True
+        if not found:
+            self._plant_combo.blockSignals(False)
+            self._plant_combo.currentIndexChanged.emit(0)
+            self._partial_emit({
+                'name':         self._name_edit.toPlainText().strip(),
+                'moisture_min': self._mmin.value(),
+                'moisture_max': self._mmax.value(),
+            })
+        self._update_plant_save_btn()
 
     def _refresh_soil_combo(self, select_name=None):
         cur_text = self._soil_combo.currentText()
         self._soil_combo.blockSignals(True)
         self._soil_combo.clear()
         self._soil_combo.addItem('— default —')
+        self._soil_combo.addItem('— custom —')
         for name in _soil_profile_names():
             self._soil_combo.addItem(name)
         target = select_name or (cur_text if not cur_text.startswith('—') else None)
+        found = False
         if target:
             idx = self._soil_combo.findText(target)
             if idx >= 0:
                 self._soil_combo.setCurrentIndex(idx)
-        self._soil_combo.blockSignals(False)
+                self._soil_combo.blockSignals(False)
+                found = True
+        if not found:
+            self._soil_combo.blockSignals(False)
+            self._soil_combo.currentIndexChanged.emit(0)
+            self._partial_emit({
+                'soil_name':       self._soil_name.text(),
+                'dry_sensor': self._dry_sensor.value(),
+                'wet_sensor': self._wet_sensor.value(),
+                'dry_std':    self._dry_std.value(),
+                'wet_std':    self._wet_std.value()
+            })
+        self._update_soil_save_btn()
 
-    def _apply(self):
+    def _open_config(self):
+        self._stack.setCurrentIndex(1)
+
+    def _controller_widget_state(self):
+        """Build widget restore state from the live PlantController, if available."""
+        if self._plantpi is None:
+            return None
+        controllers = getattr(self._plantpi, 'plant_controllers', [])
+        if self._idx >= len(controllers):
+            return None
+        pc = controllers[self._idx]
+        pp = pc.plant_profile
+        sp = pc.soil_profile
+        return {
+            'plant_name':      pp.name,
+            'icon':     pp.icon,
+            'mmin':      float(pp.moisture_min),
+            'mmax':      float(pp.moisture_max),
+            'soil_name':  sp.name,
+            'dry_sensor':  float(sp.dry_sensor),
+            'wet_sensor':  float(sp.wet_sensor),
+            'dry_std':     float(sp.dry_std),
+            'wet_std':     float(sp.wet_std),
+            'fill_time':   float(pc.fill_time),
+            'fill_pad':    float(pc.fill_pad) * 100,
+            'max_cont':    float(pc.max_continuous),
+            'max_daily':   float(pc.max_daily),
+            'dry_alert':   float(pc.dry_alert),
+        }
+
+    def _back_config(self):
+        s = self._controller_widget_state()
+        if s is not None:
+            plant_fname = _name_to_filename(s['plant_name'])
+            self._plant_combo.blockSignals(True)
+            _pidx = self._plant_combo.findText(plant_fname)
+            self._plant_combo.setCurrentIndex(_pidx if _pidx >= 0 else 0)
+            self._plant_combo.blockSignals(False)
+            self._name_edit.blockSignals(True)
+            self._name_edit.setPlainText(s['plant_name'])
+            self._name_edit.blockSignals(False)
+            self._mmin.setValue(s['mmin'])
+            self._mmax.setValue(s['mmax'])
+            soil_fname = _name_to_filename(s['soil_name'])
+            self._soil_combo.blockSignals(True)
+            _sidx = self._soil_combo.findText(soil_fname)
+            self._soil_combo.setCurrentIndex(_sidx if _sidx >= 0 else 0)
+            self._soil_combo.blockSignals(False)
+            self._soil_name.blockSignals(True)
+            self._soil_name.setText(s['soil_name'])
+            self._soil_name.blockSignals(False)
+            self._dry_sensor.setValue(s['dry_sensor'])
+            self._wet_sensor.setValue(s['wet_sensor'])
+            self._dry_std.setValue(s['dry_std'])
+            self._wet_std.setValue(s['wet_std'])
+            self._fill_time.setValue(s['fill_time'])
+            self._fill_pad.setValue(s['fill_pad'])
+            self._max_cont.setValue(s['max_cont'])
+            self._max_daily.setValue(s['max_daily'])
+            self._dry_alert.setValue(s['dry_alert'])
+            plant_text = self._plant_combo.currentText()
+            self._set_plant_editable(plant_text != '— default —')
+            soil_text = self._soil_combo.currentText()
+            self._set_soil_editable(soil_text != '— default —')
+            self._update_plant_save_btn()
+            self._update_soil_save_btn()
+            self._btn_apply.setEnabled(False)
+            self._set_icon(s['icon'])
+        self._stack.setCurrentIndex(0)
+
+    def _widget_state(self):
+        return {
+            'plant_name':        self._name_edit.toPlainText(),
+            'icon':        self._icon_path,
+            'mmin':        self._mmin.value(),
+            'mmax':        self._mmax.value(),
+            'soil_name':   self._soil_name.text(),
+            'dry_sensor':  self._dry_sensor.value(),
+            'wet_sensor':  self._wet_sensor.value(),
+            'dry_std':     self._dry_std.value(),
+            'wet_std':     self._wet_std.value(),
+            'fill_time':   self._fill_time.value(),
+            'fill_pad':    self._fill_pad.value(),
+            'max_cont':    self._max_cont.value(),
+            'max_daily':   self._max_daily.value(),
+            'dry_alert':   self._dry_alert.value(),
+        }
+
+    def _check_changes(self, *_):
+        controller_state = self._controller_widget_state()
+        if controller_state is not None:
+            changed = self._widget_state() != controller_state
+        else:
+            # No live PlantPi — compare against last emitted cfg
+            changed = self._build_cfg() != self._applied_cfg
+        has_plant_name = bool(self._name_edit.toPlainText().strip())
+        has_soil_name = bool(self._soil_name.text().strip())
+        self._btn_apply.setEnabled(changed and has_plant_name and has_soil_name)
+
+    def _emit_applied(self):
         cfg = self._build_cfg()
         self._top_dial.set_range(cfg['moisture_min'], cfg['moisture_max'])
         self._bot_dial.set_range(cfg['moisture_min'], cfg['moisture_max'])
+        self._name_lbl.setText(cfg['plant_name'])
+        self._soil_lbl.setText(cfg['soil_name'])
+        self._set_icon(cfg['icon'])
         self.applied.emit(self._idx, cfg)
+        self._applied_cfg = cfg
+        self._btn_apply.setEnabled(False)
+
+    def _partial_emit(self, cfg_update):
+        """Emit applied for a subset of fields; leave other fields from _applied_cfg."""
+        cfg = {**self._applied_cfg, **cfg_update}
+        self._top_dial.set_range(cfg['moisture_min'], cfg['moisture_max'])
+        self._bot_dial.set_range(cfg['moisture_min'], cfg['moisture_max'])
+        self.applied.emit(self._idx, cfg)
+        self._applied_cfg = cfg
+        self._check_changes()
+
+    def _apply(self):
+        if not self._soil_sensors_valid():
+            return
+        self._emit_applied()
         self._stack.setCurrentIndex(0)
 
     # ------------------------------------------------------------------
@@ -752,13 +1086,15 @@ class PlantCard(QFrame):
 
     def update_sample(self, sample_dict):
         """Refresh card from a /sample response dict for this plant."""
-        name    = sample_dict.get('name', f'Plant {self._idx}')
         m_top   = sample_dict.get('moisture_top', 0)
         m_bot   = sample_dict.get('moisture_bottom', 0)
         pumping = sample_dict.get('pump', False)
 
-        self._name_lbl.setText(name)
-        self._icon.watering = pumping
+        if not self._icon_path:
+            self._icon.watering = pumping
+        else:
+            #TODO: Other watering indication
+            pass
 
         self._top_dial.set_value(m_top)
         if m_bot is not None and m_bot != 0:
@@ -772,10 +1108,12 @@ class PlantCard(QFrame):
         self._update_bottom_visibility(self._has_bottom)
 
     def refresh_profile_combo(self):
-        """Reload profile map from disk and refresh the combo, preserving selection."""
-        cur = self._plant_combo.currentText()
-        self._profile_map = _profile_display_map()
-        self._refresh_plant_combo(cur if not cur.startswith('—') else None)
+        """Reload profile map from disk and refresh both profile combos."""
+        self._refresh_plant_combo()
+
+    def refresh_soil_profile_combo(self):
+        """Reload profile map from disk and refresh both profile combos."""
+        self._refresh_soil_combo()
 
     def set_status(self, msg):
         self.status_message.emit(msg)
@@ -789,13 +1127,12 @@ class DashboardTab(QWidget):
     profile_saved = pyqtSignal()
     status_message = pyqtSignal(str)
 
-    def __init__(self, n_plants, profile_names, plantpi_cfg, parent=None):
+    def __init__(self, n_plants, profile_names, plantpi_cfg, plantpi=None, parent=None):
         super().__init__(parent)
         self._cards = []
-
+        self._plantpi = plantpi
         self._card_layout = QHBoxLayout()
-        self._card_layout.setAlignment(
-            Qt.AlignmentFlag.AlignLeft if _QT == 6 else Qt.AlignLeft)
+        self._card_layout.setAlignment(Align.Left)
 
         root = QVBoxLayout(self)
         root.addLayout(self._card_layout)
@@ -806,9 +1143,10 @@ class DashboardTab(QWidget):
             self._add_card(i, cfg, profile_names)
 
     def _add_card(self, idx, cfg, profile_names):
-        card = PlantCard(idx, cfg, profile_names)
+        card = PlantCard(idx, cfg, profile_names, plantpi=self._plantpi)
         card.applied.connect(lambda i, c: self.plant_cfg_applied.emit(i, c))
         card.profile_saved.connect(self._on_profile_saved)
+        card.soil_profile_saved.connect(self._on_soil_profile_saved)
         card.status_message.connect(self.status_message.emit)
         self._cards.append(card)
         self._card_layout.addWidget(card, 1)
@@ -830,6 +1168,15 @@ class DashboardTab(QWidget):
         for card in self._cards:
             card.refresh_profile_combo()
         self.profile_saved.emit()
+
+    def _on_soil_profile_saved(self):
+        for card in self._cards:
+            card.refresh_soil_profile_combo()
+        self.profile_saved.emit()
+
+    def card_configs(self):
+        """Return the current widget state for every card as a list of dicts."""
+        return [card._build_cfg() for card in self._cards]
 
     def update_sample(self, samples):
         for item in samples:

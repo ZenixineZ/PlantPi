@@ -1,0 +1,6 @@
+{
+  "name": "Yuzu",
+  "icon": "resources/yuzu.png",
+  "moisture_min": 3.0,
+  "moisture_max": 7.0
+}

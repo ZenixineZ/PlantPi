@@ -1,0 +1,6 @@
+{
+  "name": "Buddha's Hand Citron",
+  "icon": "resources/buddhas_hand_citron.png",
+  "moisture_min": 3.0,
+  "moisture_max": 7.0
+}

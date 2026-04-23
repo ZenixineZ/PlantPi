@@ -1,1 +1,5 @@
-{"name": "Majestic Palm", "moisture_min": 3, "moisture_max": 7, "light_min": 4, "light_max": 6}
+{
+  "name": "Majestic Palm",
+  "moisture_min": 3.0,
+  "moisture_max": 7.0
+}

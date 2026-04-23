@@ -6,7 +6,7 @@
 #   Plant 1: top satisfied (7.25), bottom dry (1.97) → bottom fill cycles until bottom >= 6.66
 #   Plant 2, 3: both in range (4.90) → no watering
 #   Cistern: starts OK, goes LOW mid-run, restores at end
-#   CSV trimmed repeatedly (max_size=5000)
+#   CSV trimmed as needed (max_size=5000)
 
 Starting PlantPi...
 
@@ -26,8 +26,6 @@ Running with 4 plant(s): 'Dragon Plant (Dracaena)', 'Dragon Plant (Dracaena)', '
 [Warning: Cistern water level is LOW]
 
 [... iterations with Cistern: LOW ...]
-
-CSV trimmed: 4KB -> 4KB
 
 [Cistern water level restored]
 

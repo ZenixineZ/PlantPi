@@ -5,18 +5,65 @@
   "quiet": true,
   "long_sample": 5,
   "cistern_gpio": 18,
-  "simu_quit" : false,
+  "simu_quit": false,
   "simulator": "simu/topoff_sample.csv",
+  "plant_count": 4,
   "plants": [
     {
-      "profile": "dragon_plant",
+      "plant_name": "Dragon Plant (Dracaena)",
+      "icon": "resources/dragon_plant.png",
       "top_channel": 0,
       "pump_gpio": 14,
-      "soil_profile": "default",
-      "fill_time": 1,
+      "soil_name": null,
+      "fill_time": 1.0,
       "fill_pad": 0.9,
-      "max_continuous": 30,
-      "max_daily": 3000000000
+      "max_continuous": 30.0,
+      "max_daily": 3000000000.0,
+      "moisture_min": 3.0,
+      "moisture_max": 7.0,
+      "dry_alert": 7200.0
+    },
+    {
+      "plant_name": "Dragon Plant (Dracaena)",
+      "icon": "resources/dragon_plant.png",
+      "top_channel": 2,
+      "pump_gpio": 15,
+      "soil_name": null,
+      "fill_time": 1.0,
+      "fill_pad": 0.9,
+      "max_continuous": 30.0,
+      "max_daily": 3000000000.0,
+      "moisture_min": 3.0,
+      "moisture_max": 7.0,
+      "dry_alert": 7200.0
+    },
+    {
+      "plant_name": "Dragon Plant (Dracaena)",
+      "icon": "resources/dragon_plant.png",
+      "top_channel": 4,
+      "pump_gpio": 16,
+      "soil_name": null,
+      "fill_time": 1.0,
+      "fill_pad": 0.9,
+      "max_continuous": 30.0,
+      "max_daily": 3000000000.0,
+      "moisture_min": 3.0,
+      "moisture_max": 7.0,
+      "dry_alert": 7200.0
+    },
+    {
+      "plant_name": "Dragon Plant (Dracaena)",
+      "icon": "resources/dragon_plant.png",
+      "top_channel": 6,
+      "pump_gpio": 17,
+      "soil_name": null,
+      "fill_time": 1.0,
+      "fill_pad": 0.9,
+      "max_continuous": 30.0,
+      "max_daily": 3000000000.0,
+      "moisture_min": 3.0,
+      "moisture_max": 7.0,
+      "dry_alert": 7200.0
     }
   ]
 }

@@ -1,39 +1,36 @@
 TODO:
-   	-V2:
+    -V2:
         -[LIVE TEST] test moisture handling and revise thresholding if needed
-       	-[HARDWARE] 
+        -[HARDWARE] 
             -central hub run by larger pi, up to four plants
-           	-8 moisture sensors, top only or top bottom
-           	-8 submersible but strong pumps & relays
-           	-wall power
-           	-8 adc channels
-           	-8 more printed sensor covers
-           	-light sensor housing(s) (only one if you can figure out how to make it bluetoth)
-           	-light strips, enough to make it look good (figure out the communication here (looks like some digital comm with a control unit))
-           	-build control unit in or on to cistern unit, a big clear jug with an opaque control box
-           	-watering ring, look for precanned or make shift
-           	-house tubing and wires (and maybe lights) in a clear casing of some sort, probably just a larger tube
-           	-use 3d printed plugs for cable endings, you'll need 8 sockets with moulding to clip sensor wires in, and a hole to pass the pump feed through. Maybe just one pump and a set of computer controlled valves?
-           	-water level indicator in cistern
+            -8 moisture sensors, top only or top bottom
+            -8 submersible but strong pumps & relays
+            -wall power
+            -8 adc channels
+            -8 more printed sensor covers
+            -light sensor housing(s) (only one if you can figure out how to make it bluetoth)
+            -light strips, enough to make it look good (figure out the communication here (looks like some digital comm with a control unit))
+            -build control unit in or on to cistern unit, a big clear jug with an opaque control box
+            -watering ring, look for precanned or make shift
+            -house tubing and wires (and maybe lights) in a clear casing of some sort, probably just a larger tube
+            -use 3d printed plugs for cable endings, you'll need 8 sockets with moulding to clip sensor wires in, and a hole to pass the pump feed through. Maybe just one pump and a set of computer controlled valves?
+            -water level indicator in cistern
         -[SOFTWARE]
-           	-control/config ui
-                -VIBE CHECKS: 
-                      12. Replaced QTabWidget with _EvenTabWidget / _EvenTabBar so each tab is exactly bar_width / tab_count wide.
-                      15. Removed the file dialog from plant card profile saving — filename is now always derived from the display
-                      name, with an overwrite prompt on conflict.
-                      16. Swapped Back and Apply button order on the plant card config page.
-                      17. Removed the per-card _cfg_status label and routed all card status messages through a new status_message
-                      signal to the main window's left-aligned status bar.
-                -file dialog for card saves
-                -how to manage plant profile names/file names. Probably just standardize a mapping and ban mapped characters
-                -add tool tips for each field in profiles
-                -Spin boxes and line edits look shitty, maybe round edges and add margin?
-                -group boxes look shitty
+            -control/config ui
+                -add some way of showing the watering happening
+                -better icon scaling
+
+                -settings
+                    -settings tab still looks like ass
+                    -add save config button to settings pane, it should pop up a file dialogue to select a save file location where it will write every single setting to json on file
+                    -add simulator selector in settings
+
+                -tabs need to look better
                 -touch screen integrtion
 
-           	-lighting system, different colors for different fill types, selectable patterns, music mode...?
-           	-light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
-           	-(I guess vnc in until you start at web dev) runs website tracker (ios compatible?) via home network
+            -lighting system, different colors for different fill types, selectable patterns, music mode...?
+            -light sensor data insights/alerts, ideal exposure (time past thresh? intensity over time? both?) in plant profile
+            -(I guess vnc in until you start at web dev) runs website tracker (ios compatible?) via home network
 
     -V3:
         -camera for visual monitoring and AI that can tell when overwatering and under sunning is occuring

@@ -5,29 +5,18 @@ import os
 import signal
 import sys
 
-# ---------------------------------------------------------------------------
-# PyQt5/6 compatibility shim
-# ---------------------------------------------------------------------------
-try:
-    from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QTabBar,
-                                  QLabel, QProxyStyle, QStyle)
-    from PyQt5.QtCore import QObject, QSize, pyqtSignal, QTimer
-    from PyQt5.QtGui import QIcon
-    _QT = 5
-except ImportError:
-    from PyQt6.QtWidgets import (QApplication, QMainWindow, QTabWidget, QTabBar,
-                                  QLabel, QProxyStyle, QStyle)
-    from PyQt6.QtCore import QObject, QSize, pyqtSignal, QTimer
-    from PyQt6.QtGui import QIcon
-    _QT = 6
+from QtShim import (
+    QApplication, QMainWindow, QTabWidget, QTabBar, QLabel, QProxyStyle, QStyle,
+    QObject, QSize, pyqtSignal, QTimer, QIcon,
+    Style, exec_app,
+)
 
 
 class _TooltipDelayStyle(QProxyStyle):
     """Overrides the tooltip wake-up delay system hint."""
     def styleHint(self, hint, option=None, widget=None, returnData=None):
-        SH = QStyle.StyleHint.SH_ToolTip_WakeUpDelay if _QT == 6 else QStyle.SH_ToolTip_WakeUpDelay
-        if hint == SH:
-            return 3000
+        if hint == Style.SH_ToolTip_WakeUpDelay:
+            return 1000
         return super().styleHint(hint, option, widget, returnData)
 
 from _utils import (
@@ -77,21 +66,29 @@ class MainWindow(QMainWindow):
         n = min(n, max_plants)
 
         settings = {
-            'plant_count': n,
-            'csv_path':    _csv,
-            'plants':      self._cfg.get('plants', []),
+            'plant_count':  n,
+            'csv_path':     _csv,
+            'plants':       self._cfg.get('plants', []),
+            'cfg_path':     cfg_path,
+            'test':         self._cfg.get('test', False),
+            'verbose':      self._cfg.get('verbose', False),
+            'quiet':        self._cfg.get('quiet', False),
+            'simu_quit':    self._cfg.get('simu_quit', True),
+            'long_sample':  self._cfg.get('long_sample', 30),
+            'cistern_gpio': self._cfg.get('cistern_gpio', 0),
+            'simulator':    self._cfg.get('simulator', ''),
         }
 
         profile_names = _profile_names(PROFILES_DIR)
 
         self.setWindowTitle('PlantPi')
-        self.resize(900, 600)
+        self.resize(900, 750)
 
         # Tabs
         self._tabs = QTabWidget()
         self._tabs.setAccessibleName('main_tabs')
         self._tabs.tabBar().setAccessibleName('main_tab_bar')
-        self._dash = DashboardTab(n, profile_names, self._cfg)
+        self._dash = DashboardTab(n, profile_names, self._cfg, plantpi)
         self._graph = GraphTab(n, self._cfg, _csv)
         self._profiles = ProfilesTab()
         self._settings = SettingsTab(settings, max_plants=max_plants)
@@ -109,7 +106,7 @@ class MainWindow(QMainWindow):
         self._dash.status_message.connect(self._on_status_message)
         self._profiles.profiles_changed.connect(self._on_profiles_changed)
         self._settings.settings_saved.connect(self._on_settings_saved)
-        self._settings.save_as_requested.connect(self._on_save_as)
+        self._settings.save_config_requested.connect(self._on_save_config_requested)
 
         # Pause/resume graph timer based on tab visibility
         self._tabs.currentChanged.connect(self._on_tab_changed)
@@ -144,23 +141,72 @@ class MainWindow(QMainWindow):
                 idx < len(self._plantpi.plant_controllers)):
             pc = self._plantpi.plant_controllers[idx]
             pc.plant_profile = type(pc.plant_profile)(
-                new_plant_cfg.get('name') or new_plant_cfg.get('profile', pc.plant_profile.name),
+                new_plant_cfg.get('plant_name'),
+                new_plant_cfg.get('icon', pc.plant_profile.icon),
                 new_plant_cfg.get('moisture_min', pc.plant_profile.moisture_min),
                 new_plant_cfg.get('moisture_max', pc.plant_profile.moisture_max),
             )
+            pc.soil_profile = type(pc.soil_profile)(
+                new_plant_cfg.get('soil_name'),
+                new_plant_cfg.get('dry_sensor', pc.soil_profile.dry_sensor),
+                new_plant_cfg.get('wet_sensor', pc.soil_profile.wet_sensor),
+                new_plant_cfg.get('dry_std', pc.soil_profile.dry_std),
+                new_plant_cfg.get('wet_std', pc.soil_profile.wet_std),
+            )
 
         self._on_status_message(f'Plant {idx + 1} settings applied')
+
+        _save_json_atomic(LATEST_CFG_PATH, self._cfg)
+
+        self._on_status_message(f'Saved to {os.path.basename(LATEST_CFG_PATH)}')
+
 
     def _on_status_message(self, _msg):
         pass
 
     def _on_profiles_changed(self, _names):
-        pass  # picked up next time a dialog opens
+        for card in self._dash._cards:
+            card.refresh_profile_combo()
+            card.refresh_soil_profile_combo()
+
+    def _on_save_config_requested(self, path):
+        s = self._settings.current_settings()
+        self._cfg.update({
+            'plant_count':  s['plant_count'],
+            'file':         s['csv_path'],
+            'test':         s['test'],
+            'verbose':      s['verbose'],
+            'quiet':        s['quiet'],
+            'simu_quit':    s['simu_quit'],
+            'long_sample':  s['long_sample'],
+            'cistern_gpio': s['cistern_gpio'],
+            'simulator':    s['simulator'],
+        })
+        plants = self._cfg.setdefault('plants', [])
+        # Merge channel assignments from settings tab
+        for i, sensor in enumerate(s.get('sensors', [])):
+            while len(plants) <= i:
+                plants.append({})
+            plants[i].update(sensor)
+        # Merge current card widget state (profile, soil, watering fields)
+        for i, card_cfg in enumerate(self._dash.card_configs()):
+            while len(plants) <= i:
+                plants.append({})
+            plants[i].update(card_cfg)
+        _save_json_atomic(path, self._cfg)
+        self._on_status_message(f'Config saved to {os.path.basename(path)}')
 
     def _on_settings_saved(self, s):
         self._cfg.update({
-            'plant_count': s['plant_count'],
-            'file':        s['csv_path'],
+            'plant_count':  s['plant_count'],
+            'file':         s['csv_path'],
+            'test':         s['test'],
+            'verbose':      s['verbose'],
+            'quiet':        s['quiet'],
+            'simu_quit':    s['simu_quit'],
+            'long_sample':  s['long_sample'],
+            'cistern_gpio': s['cistern_gpio'],
+            'simulator':    s['simulator'],
         })
         # Merge sensor channel assignments into per-plant configs
         plants = self._cfg.setdefault('plants', [])
@@ -177,10 +223,6 @@ class MainWindow(QMainWindow):
         self._graph.set_csv(s['csv_path'])
 
         self._on_status_message(f'Saved to {os.path.basename(LATEST_CFG_PATH)}')
-
-    def _on_save_as(self, path):
-        _save_json_atomic(path, self._cfg)
-        self._on_status_message(f'Saved to {os.path.basename(path)}')
 
     @property
     def bridge(self):
@@ -229,4 +271,4 @@ def launch(cfg_path=None, csv_path=None, plantpi=None):
     if plantpi is not None and win.bridge is not None:
         plantpi._ui_bridge = win.bridge
     win.show()
-    return app.exec() if _QT == 6 else app.exec_()
+    return exec_app(app)

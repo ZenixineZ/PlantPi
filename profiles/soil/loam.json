@@ -1,0 +1,7 @@
+{
+  "name": "Loam",
+  "dry_sensor": 0.428,
+  "dry_std": 1.5,
+  "wet_sensor": 0.283,
+  "wet_std": 10.0
+}
